@@ -1,0 +1,13 @@
+Use case: photorealistic-natural
+Asset type: landing page section image
+Primary request: ultra-realistic cinematic exterior of a contemporary oceanfront residence at blue hour, premium and restrained
+Scene/background: elevated modern residence facing a dark ocean horizon, reflective stone surfaces, soft interior lighting, subtle sea mist
+Subject: architecture, arrival driveway, calm waterline, one sculptural grand tourer silhouette without any visible brand
+Style/medium: cinematic architectural photography
+Composition/framing: wide three-quarter angle, layered depth, generous negative space for overlay copy
+Lighting/mood: blue hour, soft practical lights, wet reflections, calm and expensive atmosphere
+Color palette: ocean navy, celeste highlights, graphite, silver, warm interior amber
+Materials/textures: glass, brushed metal, wet stone, calm water, refined leather hints
+Quality: high
+Constraints: no visible people, no text, no logos, no watermark, no exaggerated sci-fi elements
+Avoid: stock-photo vibe, oversaturated neon, fake CGI plastic surfaces, clutter

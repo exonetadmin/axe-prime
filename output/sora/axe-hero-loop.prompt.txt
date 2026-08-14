@@ -1,0 +1,13 @@
+Use case: landing page hero loop
+Primary request: ultra-realistic cinematic loop for a premium patrimonial brand with ocean-blue identity
+Scene/background: monumental contemporary glass architecture facing a dark ocean horizon at blue hour, subtle sea haze and reflective surfaces
+Subject: sculptural architectural passage and tower volume, no people, no vehicles, no signage
+Action: slow seamless forward drift with subtle light movement across the glass and very gentle ocean mist
+Camera: 35mm stabilized dolly-forward, minimal parallax, premium commercial cadence
+Lighting/mood: blue hour luxury, celeste highlights, restrained warm interior accents, calm and sophisticated
+Color palette: ocean navy, celeste blue, graphite, silver, soft amber
+Style/format: ultra-realistic cinematic luxury commercial, high dynamic range, premium architecture film
+Timing/beats: 0-2s establish silhouette, 2-6s glide through reflections, 6-8s settle back into an opening-compatible frame
+Audio: none
+Constraints: seamless loop feeling, no people, no logos, no text, no watermark, no fast cuts
+Avoid: drone wobble, jitter, cyberpunk, oversaturated neon, stock footage feeling, excessive fog

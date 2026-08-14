@@ -1,0 +1,48 @@
+# AXE PRIME Design Tokens - Effects
+
+axe-prime:
+  shadow:
+    DEFAULT:
+      value: '0 28px 60px -36px rgba(0, 0, 0, 0.72), 0 16px 24px -24px rgba(0, 0, 0, 0.48)'
+    sm:
+      value: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+    md:
+      value: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
+    lg:
+      value: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+    glow:
+      value: '0 0 40px rgba(56, 189, 248, 0.32)'
+  
+  blur:
+    sm:
+      value: '4px'
+    DEFAULT:
+      value: '8px'
+    md:
+      value: '12px'
+    lg:
+      value: '16px'
+    xl:
+      value: '24px'
+  
+  transition:
+    fast:
+      value: '150ms ease'
+    DEFAULT:
+      value: '200ms ease'
+    slow:
+      value: '300ms ease'
+    slower:
+      value: '500ms ease'
+  
+  backdrop:
+    blur:
+      value: '12px'
+    
+  gradient:
+    hero:
+      value: 'radial-gradient(circle at 12% 0%, rgba(56, 189, 248, 0.16), transparent 26%), radial-gradient(circle at 88% 10%, rgba(14, 165, 233, 0.12), transparent 22%), linear-gradient(180deg, #07131f 0%, #030b13 34%, #06111b 100%)'
+    surface:
+      value: 'linear-gradient(180deg, rgba(255, 255, 255, 0.015), transparent 24%)'
+    grid:
+      value: 'linear-gradient(90deg, rgba(255, 255, 255, 0.012) 1px, transparent 1px), linear-gradient(180deg, rgba(255, 255, 255, 0.01) 1px, transparent 1px)'

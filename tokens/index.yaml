@@ -1,0 +1,30 @@
+# AXE PRIME Design System Tokens
+# W3C Design Tokens Community Group (DTCG) Format
+# 
+# Usage:
+# - Colors: axe-prime.color.background.base
+# - Typography: axe-prime.font.family.display
+# - Spacing: axe-prime.space.4
+# - Effects: axe-prime.shadow.DEFAULT
+
+imports:
+  - ./colors.yaml
+  - ./typography.yaml
+  - ./spacing.yaml
+  - ./effects.yaml
+
+meta:
+  name: AXE PRIME Design System
+  version: 1.0.0
+  description: Premium financial platform design tokens
+  author: AXE PRIME Design Team
+  platforms:
+    - web
+    - mobile
+  
+theme:
+  dark:
+    extends: axe-prime
+  light:
+    # Light theme variations would go here
+    extends: axe-prime

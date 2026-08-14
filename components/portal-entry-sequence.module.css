@@ -1,0 +1,388 @@
+.contentShell {
+  position: relative;
+}
+
+.contentBooting {
+  visibility: hidden;
+}
+
+.contentLocked {
+  pointer-events: none;
+  user-select: none;
+}
+
+.viewport {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background:
+    radial-gradient(circle at 50% 16%, rgba(122, 211, 252, 0.07), transparent 20%),
+    radial-gradient(circle at 50% 42%, rgba(14, 165, 233, 0.12), transparent 32%),
+    radial-gradient(circle at 50% 74%, rgba(18, 76, 112, 0.18), transparent 26%),
+    linear-gradient(180deg, rgba(2, 8, 15, 0.97), rgba(1, 6, 12, 0.985));
+  color: var(--text);
+  opacity: 1;
+  transform: scale(1);
+  transition:
+    opacity 360ms ease,
+    transform 360ms ease,
+    filter 360ms ease;
+}
+
+.isLeaving {
+  opacity: 0;
+  transform: scale(1.02);
+  filter: brightness(1.18);
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.backdrop::before,
+.backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.backdrop::before {
+  background:
+    radial-gradient(circle at center, rgba(125, 211, 252, 0.08), transparent 44%),
+    radial-gradient(circle at 50% 72%, rgba(56, 189, 248, 0.12), transparent 35%);
+  animation: sentinel-pulse 6s ease-in-out infinite;
+}
+
+.backdrop::after {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 120px 120px;
+  mask-image: radial-gradient(circle at center, black 42%, transparent 92%);
+  opacity: 0.18;
+}
+
+.topBar {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: min(1360px, calc(100vw - 3rem));
+  margin: 0 auto;
+  padding: 0.82rem 0 0;
+}
+
+.brand {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: rgba(243, 249, 253, 0.82);
+}
+
+.skipButton {
+  min-height: 38px;
+  padding: 0 0.9rem;
+  border-radius: 999px;
+  border: 1px solid rgba(125, 211, 252, 0.2);
+  background: rgba(7, 20, 31, 0.64);
+  color: rgba(243, 249, 253, 0.42);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  backdrop-filter: blur(12px);
+  transition:
+    color 180ms ease,
+    border-color 180ms ease,
+    background-color 180ms ease,
+    opacity 180ms ease;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.skipButtonVisible {
+  opacity: 1;
+  pointer-events: auto;
+  color: var(--text-soft);
+}
+
+.skipButtonVisible:hover,
+.skipButtonVisible:focus-visible {
+  color: var(--text);
+  border-color: rgba(125, 211, 252, 0.32);
+  background: rgba(9, 24, 38, 0.9);
+}
+
+.stage {
+  position: relative;
+  z-index: 2;
+  --portal-entry-dock-space: 108px;
+  width: min(1360px, calc(100vw - 3rem));
+  margin: 0 auto;
+  min-height: 0;
+  padding: 0.35rem 0 1.1rem;
+}
+
+.faceShell {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  height: max(220px, calc(100% - var(--portal-entry-dock-space)));
+}
+
+.faceHalo {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: min(80vw, 1080px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at center, rgba(125, 211, 252, 0.16), transparent 42%),
+    radial-gradient(circle at center, rgba(14, 165, 233, 0.1), transparent 60%);
+  filter: blur(28px);
+  animation: halo-drift 9s ease-in-out infinite;
+}
+
+.faceViewport {
+  position: relative;
+  width: min(78vw, 980px);
+  height: min(100%, 560px);
+  min-height: 220px;
+}
+
+.faceFallback {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+}
+
+.fallbackCore {
+  position: relative;
+  width: min(38vw, 300px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at center, rgba(125, 211, 252, 0.18), rgba(14, 165, 233, 0.08), transparent 72%);
+  box-shadow:
+    0 0 70px rgba(56, 189, 248, 0.14),
+    inset 0 0 24px rgba(125, 211, 252, 0.12);
+}
+
+.fallbackCore::before,
+.fallbackCore::after {
+  content: '';
+  position: absolute;
+  inset: 16%;
+  border-radius: 50%;
+  border: 1px solid rgba(125, 211, 252, 0.24);
+}
+
+.fallbackCore::before {
+  animation: fallback-spin 4.5s linear infinite;
+}
+
+.fallbackCore::after {
+  inset: 28%;
+  animation: fallback-spin 3.2s linear infinite reverse;
+}
+
+.bottomDock {
+  position: absolute;
+  left: 50%;
+  bottom: 0.2rem;
+  display: grid;
+  gap: 0.38rem;
+  justify-items: center;
+  text-align: center;
+  width: min(760px, 100%);
+  margin: 0;
+  padding: 0;
+  transform: translateX(-50%);
+  z-index: 3;
+}
+
+.stageRail {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.4rem;
+  width: min(740px, 100%);
+}
+
+.stagePill {
+  padding: 0.42rem 0.52rem;
+  border: 1px solid rgba(125, 211, 252, 0.11);
+  border-radius: 999px;
+  background: rgba(4, 14, 22, 0.72);
+  color: rgba(163, 178, 195, 0.72);
+  font-size: 0.54rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  overflow-wrap: anywhere;
+}
+
+.stagePillDone {
+  color: rgba(207, 250, 254, 0.86);
+  border-color: rgba(45, 212, 191, 0.24);
+  background: rgba(5, 30, 28, 0.64);
+}
+
+.stagePillActive {
+  color: var(--text);
+  border-color: rgba(125, 211, 252, 0.34);
+  background: linear-gradient(180deg, rgba(16, 32, 45, 0.92), rgba(5, 18, 30, 0.86));
+  box-shadow: 0 18px 40px -30px rgba(125, 211, 252, 0.48);
+}
+
+.progressTrack {
+  width: min(740px, 100%);
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(125, 211, 252, 0.12);
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(103, 232, 249, 0.72), rgba(45, 212, 191, 0.94));
+  box-shadow: 0 0 18px rgba(45, 212, 191, 0.36);
+  transform-origin: left center;
+}
+
+@keyframes sentinel-pulse {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes halo-drift {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -49%) scale(1.05);
+  }
+}
+
+@keyframes fallback-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 1023px) {
+  .topBar,
+  .stage {
+    width: min(100vw - 2rem, 900px);
+  }
+
+  .stage {
+    --portal-entry-dock-space: 96px;
+  }
+
+  .faceViewport {
+    width: min(100%, 820px);
+    min-height: 200px;
+    height: min(100%, 440px);
+  }
+
+  .stageRail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-height: 820px) {
+  .topBar {
+    padding-top: 0.85rem;
+  }
+
+  .stage {
+    --portal-entry-dock-space: 90px;
+    padding-bottom: 0.95rem;
+  }
+
+  .faceViewport {
+    min-height: 180px;
+  }
+
+  .bottomDock {
+    gap: 0.42rem;
+  }
+}
+
+@media (max-height: 720px) {
+  .stage {
+    --portal-entry-dock-space: 58px;
+    padding-bottom: 0.58rem;
+  }
+
+  .faceViewport {
+    min-height: 130px;
+  }
+
+  .stageRail {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .topBar {
+    width: calc(100vw - 1.5rem);
+    padding-top: 1rem;
+  }
+
+  .stage {
+    --portal-entry-dock-space: 72px;
+    width: calc(100vw - 1.5rem);
+    padding-bottom: 0.9rem;
+  }
+
+  .faceViewport {
+    min-height: 130px;
+  }
+
+  .stageRail {
+    grid-template-columns: 1fr;
+  }
+
+  .progressTrack {
+    width: min(100%, 640px);
+  }
+}
+
+@media (max-width: 767px) and (max-height: 760px) {
+  .stage {
+    --portal-entry-dock-space: 46px;
+  }
+
+  .stageRail {
+    display: none;
+  }
+
+  .faceViewport {
+    min-height: 110px;
+  }
+}

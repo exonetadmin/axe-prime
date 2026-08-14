@@ -1,0 +1,4145 @@
+/**
+ * AXE PRIME – Admin Design System
+ * Identidade real: Navy #030b13 · Sky #38bdf8 · Bordas cyan rgba(103,196,243,0.14)
+ * Alinhado ao globals.css do portal — mesmas variáveis CSS, mesma linguagem visual.
+ *
+ * Importado em app/admin/layout.tsx
+ */
+
+/* ─── Tokens (espelham o :root do portal) ───────────────────────────────── */
+.adm-shell,
+.adm-login-page {
+  --bg:            #030b13;
+  --bg-strong:     #071521;
+  --surface:       rgba(7, 20, 31, 0.92);
+  --surface-soft:  rgba(8, 22, 34, 0.60);
+  --border:        rgba(103, 196, 243, 0.14);
+  --border-md:     rgba(125, 211, 252, 0.28);
+  --text:          #f3f9fd;
+  --text-muted:    rgba(216, 226, 236, 0.88);
+  --text-soft:     rgba(163, 178, 195, 0.82);
+  --sky:           #7dd3fc;
+  --accent:        #38bdf8;
+  --accent-strong: #0ea5e9;
+  --glow:          rgba(56, 189, 248, 0.32);
+  --danger:        #f87171;
+  --danger-glow:   rgba(248, 113, 113, 0.15);
+  --success:       #34d399;
+  --warning:       #fbbf24;
+  --radius:        1rem;
+  --sidebar-w:     236px;
+  --ease:          cubic-bezier(0.22, 1, 0.36, 1);
+  --shadow:        0 28px 60px -36px rgba(0,0,0,0.72), 0 16px 24px -24px rgba(0,0,0,0.48);
+}
+
+/* ─── Reset ─────────────────────────────────────────────────────────────── */
+.adm-shell *,
+.adm-login-page * {
+  box-sizing: border-box;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SHELL
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-shell {
+  display: flex;
+  height: 100dvh;          /* altura fixa — body nunca cresce além do viewport */
+  overflow: hidden;         /* bloqueia overflow no nível do shell */
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans, 'Inter', system-ui, sans-serif);
+  -webkit-font-smoothing: antialiased;
+}
+
+.adm-content-area {
+  flex: 1;
+  min-width: 0;
+  height: 100dvh;           /* scroll container real — content rola aqui, não no body */
+  overflow-y: auto;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SIDEBAR
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-sidebar {
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  background: linear-gradient(180deg, rgba(7,20,31,0.98) 0%, rgba(3,11,19,0.98) 100%);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;           /* sempre altura do viewport — não cresce com o conteúdo */
+  flex-shrink: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+.adm-sidebar::-webkit-scrollbar { display: none; }
+
+/* Brand */
+.adm-sidebar-brand {
+  padding: 1.5rem 1.25rem 1.25rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.adm-sidebar-logo-img {
+  height: 32px;
+  width: auto;
+  object-fit: contain;
+  /* Mesma tonalidade ciano do portal */
+  filter: drop-shadow(0 0 8px rgba(125,211,252,0.25));
+}
+
+.adm-sidebar-sub {
+  font-size: 0.58rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  font-weight: 600;
+  /* Pill igual ao eyebrow do portal */
+  background: rgba(5, 18, 29, 0.68);
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+}
+
+/* Nav */
+.adm-sidebar-nav {
+  flex: 1;
+  padding: 1rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.adm-sidebar-group {
+  margin-bottom: 0.25rem;
+}
+
+.adm-sidebar-group-label {
+  font-size: 0.58rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(163,178,195,0.5);
+  font-weight: 700;
+  padding: 0.75rem 0.625rem 0.3rem;
+}
+
+.adm-sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.525rem 0.75rem;
+  border-radius: 0.5rem;
+  font-size: 0.775rem;
+  font-weight: 500;
+  color: var(--text-soft);
+  text-decoration: none;
+  position: relative;
+  transition: color 180ms ease, background 180ms ease, border-color 180ms ease;
+  border: 1px solid transparent;
+}
+
+.adm-sidebar-link:hover {
+  color: var(--text);
+  background: rgba(56, 189, 248, 0.06);
+  border-color: var(--border);
+}
+
+.adm-sidebar-link:hover .adm-sidebar-link-icon {
+  color: var(--accent);
+}
+
+/* Active — faixa ciano esquerda + bg suave */
+.adm-sidebar-link--active {
+  color: var(--text);
+  background: rgba(56, 189, 248, 0.08);
+  border-color: rgba(125, 211, 252, 0.18);
+}
+
+.adm-sidebar-link--active::before {
+  content: '';
+  position: absolute;
+  left: -0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 55%;
+  background: linear-gradient(180deg, #7dd3fc, #38bdf8);
+  border-radius: 0 2px 2px 0;
+  box-shadow: 0 0 10px var(--glow);
+}
+
+.adm-sidebar-link-icon {
+  color: rgba(163,178,195,0.6);
+  transition: color 180ms ease;
+  flex-shrink: 0;
+}
+
+.adm-sidebar-link--active .adm-sidebar-link-icon {
+  color: var(--accent);
+}
+
+/* Footer */
+.adm-sidebar-footer {
+  padding: 1rem 0.75rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.adm-sidebar-user {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.adm-sidebar-avatar {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  background: rgba(56, 189, 248, 0.08);
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.adm-sidebar-user-info {
+  min-width: 0;
+}
+
+.adm-sidebar-user-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.adm-sidebar-user-role {
+  font-size: 0.62rem;
+  color: var(--text-soft);
+  margin-top: 0.1rem;
+  letter-spacing: 0.04em;
+}
+
+.adm-sidebar-logout {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-soft);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+  width: 100%;
+  transition: color 180ms ease, background 180ms ease, border-color 180ms ease;
+  letter-spacing: 0.01em;
+}
+
+.adm-sidebar-logout:hover {
+  color: var(--danger);
+  border-color: rgba(248, 113, 113, 0.25);
+  background: var(--danger-glow);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PAGE
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-page {
+  padding: 2rem 1.25rem;
+  max-width: 1400px;
+}
+
+.adm-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 2rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.adm-page-header > div:first-child {
+  min-width: 0;
+  flex: 1;
+}
+
+/* Eyebrow — mesmo padrão do portal */
+.adm-page-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgba(223, 245, 255, 0.92);
+  background: rgba(5, 18, 29, 0.68);
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 999px;
+  padding: 0.3rem 0.8rem;
+  margin-bottom: 0.75rem;
+}
+
+.adm-page-kicker::before {
+  content: '';
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #dff5ff, var(--accent));
+  box-shadow: 0 0 14px var(--glow);
+  flex-shrink: 0;
+}
+
+.adm-page-title {
+  font-size: 1.55rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.025em;
+  line-height: 1.2;
+}
+
+.adm-page-sub {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.35rem;
+  line-height: 1.7;
+}
+
+/* Role badge — mesmo estilo eyebrow */
+.adm-role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: rgba(223, 245, 255, 0.92);
+  background: rgba(5, 18, 29, 0.68);
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 999px;
+  padding: 0.4rem 0.875rem;
+  white-space: nowrap;
+  backdrop-filter: blur(8px);
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   STAT CARDS (mesmo padrão glass-panel do portal)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+/* Card: icon à esquerda, texto à direita */
+.adm-stat-card {
+  background: linear-gradient(180deg, rgba(10, 25, 38, 0.82), rgba(4, 14, 23, 0.72));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: var(--shadow);
+  padding: 1.125rem 1.25rem;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.875rem;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 180ms ease, transform 300ms var(--ease);
+  cursor: default;
+  min-width: 0;
+}
+
+.adm-stat-card:hover {
+  border-color: var(--border-md);
+  transform: translateY(-1px);
+}
+
+.adm-stat-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  min-width: 2.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.625rem;
+  background: rgba(56, 189, 248, 0.06);
+  border: 1px solid rgba(125, 211, 252, 0.14);
+  flex-shrink: 0;
+}
+
+.adm-stat-value {
+  font-size: clamp(0.85rem, 2vw, 1.2rem);
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.adm-stat-label {
+  font-size: 0.65rem;
+  color: var(--text-soft);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-top: 0.2rem;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.3;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   WELCOME NOTICE
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-welcome-notice {
+  background: linear-gradient(180deg, rgba(10, 25, 38, 0.82), rgba(4, 14, 23, 0.72));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  padding: 1.5rem;
+}
+
+.adm-welcome-notice-title {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  margin-bottom: 1rem;
+}
+
+.adm-welcome-notice-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.adm-welcome-notice-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  background: rgba(56, 189, 248, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  padding: 0.3rem 0.7rem;
+}
+
+.adm-welcome-check {
+  color: var(--success);
+  font-size: 0.7rem;
+}
+
+.adm-welcome-notice-footer {
+  font-size: 0.72rem;
+  color: var(--text-soft);
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CARDS GENÉRICOS
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-card {
+  background: linear-gradient(180deg, rgba(10, 25, 38, 0.82), rgba(4, 14, 23, 0.72));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  padding: 1.5rem;
+}
+
+.adm-card-title {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  margin-bottom: 1.25rem;
+}
+
+.adm-card-note {
+  font-size: 0.7rem;
+  color: var(--text-soft);
+  margin-top: 0.875rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TABELAS
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  /* Thin scrollbar indicator */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(56,189,248,0.18) transparent;
+}
+.adm-table-wrap::-webkit-scrollbar { height: 5px; }
+.adm-table-wrap::-webkit-scrollbar-track { background: transparent; }
+.adm-table-wrap::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.18); border-radius: 4px; }
+
+.adm-table {
+  width: 100%;
+  min-width: 900px; /* garante scroll horizontal antes de comprimir colunas */
+  border-collapse: collapse;
+  font-size: 0.73rem;
+}
+
+.adm-table th {
+  text-align: left;
+  font-size: 0.55rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  font-weight: 700;
+  padding: 0.7rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.adm-table td {
+  padding: 0.7rem 0.5rem;
+  border-bottom: 1px solid rgba(103, 196, 243, 0.06);
+  color: var(--text-muted);
+  vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.adm-table tbody tr:hover {
+  background: rgba(56, 189, 248, 0.04);
+}
+
+.adm-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.adm-table-muted { color: var(--text-soft); }
+
+/* Email abaixo do nome: truncar se muito longo */
+td:first-child .adm-table-muted {
+  max-width: clamp(140px, 20vw, 240px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.adm-table-value { font-variant-numeric: tabular-nums; font-weight: 600; letter-spacing: -0.02em; }
+/* Nome + email truncados via elemento filho (block) */
+.adm-table-name {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  max-width: clamp(160px, 24vw, 260px);
+  flex-wrap: wrap;
+}
+
+.adm-table-name__text {
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.adm-table-name-badge {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BADGES
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border-radius: 999px;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid transparent;
+}
+
+.adm-badge--start    { color: #60a5fa; background: rgba(59,130,246,0.08); border-color: rgba(59,130,246,0.2); }
+.adm-badge--prime    { color: var(--sky); background: rgba(56,189,248,0.08); border-color: rgba(125,211,252,0.2); }
+.adm-badge--elite    { color: #a78bfa; background: rgba(139,92,246,0.08); border-color: rgba(139,92,246,0.2); }
+.adm-badge--success  { color: #34d399; background: rgba(16,185,129,0.08); border-color: rgba(16,185,129,0.2); }
+.adm-badge--warning  { color: #fbbf24; background: rgba(245,158,11,0.08); border-color: rgba(245,158,11,0.2); }
+.adm-badge--danger   { color: #f87171; background: rgba(239,68,68,0.08);  border-color: rgba(239,68,68,0.2); }
+.adm-badge--neutral  { color: var(--text-soft); background: rgba(255,255,255,0.04); border-color: var(--border); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BOTÕES (mesmas classes dos botões do portal)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.primary-button,
+.adm-btn--primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.375rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+  color: #f3f9fd;
+  border: 1px solid rgba(125, 211, 252, 0.3);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: box-shadow 200ms ease, transform 200ms ease, opacity 200ms ease;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.primary-button:hover:not(:disabled),
+.adm-btn--primary:hover:not(:disabled) {
+  box-shadow: 0 0 28px var(--glow);
+  transform: translateY(-1px);
+}
+
+.primary-button:disabled,
+.adm-btn--primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.adm-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.775rem;
+  font-weight: 500;
+  border-radius: 0.5rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 180ms ease;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.adm-btn--sm { font-size: 0.7rem; padding: 0.3rem 0.7rem; }
+
+.adm-btn--ghost {
+  background: rgba(255,255,255,0.04);
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+.adm-btn--ghost:hover:not(:disabled) {
+  background: rgba(56,189,248,0.06);
+  border-color: rgba(125,211,252,0.2);
+  color: var(--text);
+}
+
+.adm-btn--danger {
+  background: rgba(239,68,68,0.08);
+  color: #f87171;
+  border-color: rgba(239,68,68,0.2);
+}
+.adm-btn--danger:hover:not(:disabled) {
+  background: rgba(239,68,68,0.14);
+}
+
+.adm-btn--success {
+  background: rgba(16,185,129,0.08);
+  color: #34d399;
+  border-color: rgba(16,185,129,0.2);
+}
+.adm-btn--success:hover:not(:disabled) {
+  background: rgba(16,185,129,0.14);
+}
+
+.adm-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INPUTS
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-input {
+  background: rgba(7, 20, 31, 0.8);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  color: var(--text);
+  font-size: 0.8rem;
+  padding: 0.5rem 0.875rem;
+  outline: none;
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+  width: 100%;
+  font-family: inherit;
+}
+
+.adm-input:focus {
+  border-color: rgba(125, 211, 252, 0.4);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1);
+}
+
+.adm-input::placeholder {
+  color: var(--text-soft);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ESTADOS VAZIOS
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-forbidden {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 40vh;
+  text-align: center;
+  gap: 0.75rem;
+}
+
+.adm-forbidden-icon  { font-size: 2.5rem; opacity: 0.4; margin-bottom: 0.5rem; }
+.adm-forbidden-title { font-size: 1rem; font-weight: 600; color: var(--text); }
+.adm-forbidden-sub   { font-size: 0.78rem; color: var(--text-soft); max-width: 320px; line-height: 1.7; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CONFIGURAÇÕES
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-cfg-grid         { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+.adm-cfg-inline-form  { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.adm-cfg-form-footer  { display: flex; align-items: center; gap: 1rem; margin-top: 0.75rem; }
+.adm-cfg-error        { font-size: 0.72rem; color: #f87171; margin-top: 0.35rem; }
+.adm-cfg-ok           { font-size: 0.72rem; color: #34d399; margin-top: 0.35rem; }
+.adm-cfg-lock         { padding: 2rem; text-align: center; color: var(--text-soft); }
+@media (max-width: 800px) { .adm-cfg-grid { grid-template-columns: 1fr; } }
+
+/* Paginação */
+.adm-filters       { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.adm-action-row    { display: flex; gap: 0.4rem; align-items: center; }
+.adm-pagination    { display: flex; align-items: center; justify-content: space-between; padding-top: 1rem; border-top: 1px solid var(--border); gap: 1rem; flex-wrap: wrap; }
+.adm-pagination-info { font-size: 0.72rem; color: var(--text-soft); font-variant-numeric: tabular-nums; }
+.adm-pagination-btns { display: flex; gap: 0.375rem; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LOGIN PAGE
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-login-page {
+  min-height: 100dvh;
+  background: var(--bg);
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  /* Grade idêntica ao body::after do portal */
+  background-image:
+    linear-gradient(90deg, rgba(255,255,255,0.012) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255,255,255,0.01) 1px, transparent 1px);
+  background-size: 160px 160px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Orbe azul-ciano de fundo — mesmo estilo hero */
+.adm-login-page::before {
+  content: '';
+  position: fixed;
+  top: 10%;
+  right: 5%;
+  width: 480px;
+  height: 480px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(56,189,248,0.08) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.adm-login-shell {
+  width: 100%;
+  max-width: 880px;
+  display: flex;
+  border-radius: var(--radius-xl, 1.5rem);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow), 0 0 80px rgba(0,0,0,0.7);
+  position: relative;
+  z-index: 1;
+}
+
+/* Left brand strip */
+.adm-login-brand {
+  width: 300px;
+  min-width: 300px;
+  background: linear-gradient(160deg, rgba(10,25,40,0.98) 0%, rgba(3,11,19,0.98) 100%);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 3rem 2.25rem;
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Mesmo orbe radial do hero */
+.adm-login-brand::after {
+  content: '';
+  position: absolute;
+  bottom: -120px;
+  left: -80px;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(56,189,248,0.1) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.adm-login-brand-logo {
+  height: 36px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 0 12px rgba(125,211,252,0.2));
+  margin-bottom: 2rem;
+}
+
+.adm-login-brand-tag {
+  font-size: 0.62rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--sky);
+  margin-bottom: 0.75rem;
+}
+
+.adm-login-brand-title {
+  font-size: 1.85rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.15;
+  color: var(--text);
+  margin-bottom: 1rem;
+}
+
+.adm-login-brand-sub {
+  font-size: 0.78rem;
+  color: var(--text-soft);
+  line-height: 1.75;
+}
+
+.adm-login-brand-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(223,245,255,0.7);
+  background: rgba(5, 18, 29, 0.68);
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+}
+
+/* Right form */
+.adm-login-card {
+  flex: 1;
+  background: linear-gradient(180deg, rgba(10,25,38,0.82), rgba(4,14,23,0.72));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 3rem 2.75rem;
+  gap: 2rem;
+}
+
+.adm-login-card-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.025em;
+  margin-bottom: 0.4rem;
+}
+
+.adm-login-card-sub {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.65;
+}
+
+/* Form */
+.adm-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.adm-login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.adm-login-label {
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.adm-login-input {
+  background: rgba(7, 20, 31, 0.8);
+  border: 1px solid var(--border);
+  border-radius: 0.625rem;
+  color: var(--text);
+  font-size: 0.9rem;
+  padding: 0.75rem 1rem;
+  outline: none;
+  transition: border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
+  font-family: inherit;
+  width: 100%;
+}
+
+.adm-login-input::placeholder {
+  color: var(--text-soft);
+  font-size: 0.82rem;
+}
+
+.adm-login-input:focus {
+  border-color: rgba(125, 211, 252, 0.4);
+  background: rgba(7, 20, 31, 0.95);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1);
+}
+
+.adm-login-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.adm-login-error {
+  font-size: 0.74rem;
+  color: #f87171;
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.15);
+  border-radius: 0.4rem;
+  padding: 0.5rem 0.875rem;
+}
+
+/* Botão submit — igual ao primary-button do portal */
+.adm-login-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.875rem;
+  background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+  color: #f3f9fd;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid rgba(125, 211, 252, 0.3);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: box-shadow 200ms ease, transform 200ms ease, opacity 200ms ease;
+  margin-top: 0.25rem;
+}
+
+.adm-login-submit:hover:not(:disabled) {
+  box-shadow: 0 0 32px var(--glow), 0 4px 16px rgba(0,0,0,0.4);
+  transform: translateY(-1px);
+}
+
+.adm-login-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.adm-login-disclaimer {
+  font-size: 0.68rem;
+  color: var(--text-soft);
+  line-height: 1.65;
+  text-align: center;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 860px) {
+  .adm-login-brand { display: none; }
+  .adm-login-shell { max-width: 440px; }
+  .adm-login-card  { padding: 2.5rem 2rem; }
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+
+@media (max-width: 1024px) {
+  .adm-page         { padding: 1.75rem 1.75rem; }
+  .adm-stats-grid   { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+}
+
+@media (max-width: 768px) {
+  .adm-sidebar      { display: none; }
+  .adm-page         { padding: 1.25rem 1rem; }
+  .adm-stats-grid   { grid-template-columns: 1fr 1fr; }
+  .adm-cfg-grid     { grid-template-columns: 1fr !important; }
+  .adm-page-title   { font-size: 1.25rem; }
+  .adm-tabs         { gap: 0; }
+  .adm-search-row   { flex-direction: column; align-items: stretch; }
+  .adm-search-row .adm-input { max-width: 100%; }
+}
+
+@media (max-width: 480px) {
+  .adm-page         { padding: 1rem 0.875rem; }
+  .adm-stats-grid   { grid-template-columns: 1fr; }
+  .adm-page-header  { flex-direction: column; }
+  .adm-role-badge   { align-self: flex-start; }
+  .adm-stat-card    { padding: 0.875rem 1rem; gap: 0.75rem; }
+  .adm-stat-value   { font-size: 1.05rem; }
+  .adm-tab          { font-size: 0.65rem; padding: 0.4rem 0.7rem; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MISSING COMPANION CLASSES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* adm-stat-body — wrapper for value+label inside stat cards (flex row layout) */
+.adm-stat-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1;
+  min-width: 0;   /* prevents flex blowout */
+  overflow: visible; /* do NOT hide — let text wrap inside */
+}
+
+/* Search row */
+.adm-search-row {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+/* Toolbar: wrapper que agrupa search-row + ações (ex: "Novo Usuário").
+   Nunca colapsa em flex-column sozinho — o adm-search-row interno faz o wrap. */
+.adm-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+.adm-toolbar > .adm-search-row {
+  margin-bottom: 0;   /* remove margem dupla ao ser filho de toolbar */
+}
+
+
+.adm-search-row .adm-input {
+  max-width: 360px;
+  flex: 1;
+}
+
+/* ── Tabs (status filter nav) ────────────────────────────────────────────── */
+.adm-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.125rem;
+  flex-wrap: wrap;
+}
+
+.adm-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-soft);
+  border-radius: 0.4rem 0.4rem 0 0;
+  border: 1px solid transparent;
+  border-bottom: none;
+  text-decoration: none;
+  transition: color 160ms ease, background 160ms ease, border-color 160ms ease;
+  position: relative;
+  top: 1px;
+}
+
+.adm-tab:hover {
+  color: var(--text);
+  background: rgba(56, 189, 248, 0.05);
+}
+
+.adm-tab--active {
+  color: var(--accent);
+  background: rgba(56, 189, 248, 0.06);
+  border-color: var(--border);
+  border-bottom-color: var(--bg-strong, #071521);
+}
+
+/* ── Code snippets ───────────────────────────────────────────────────────── */
+.adm-code {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+  font-size: 0.72rem;
+  color: var(--sky);
+  background: rgba(56, 189, 248, 0.06);
+  border: 1px solid rgba(125, 211, 252, 0.14);
+  border-radius: 0.3rem;
+  padding: 0.15rem 0.45rem;
+  letter-spacing: 0.03em;
+  font-variant-numeric: slashed-zero;  /* 0 com barra — nunca confunde com O */
+}
+
+/* ── Empty table cell ────────────────────────────────────────────────────── */
+.adm-table-empty {
+  text-align: center;
+  color: var(--text-soft);
+  font-size: 0.78rem;
+  padding: 3rem !important;
+}
+
+.adm-table-meta {
+  font-size: 0.68rem;
+  color: var(--text-soft);
+  margin-top: 0.75rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Coming-soon / empty state ───────────────────────────────────────────── */
+.adm-coming-soon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 28vh;
+  text-align: center;
+  gap: 0.5rem;
+}
+
+.adm-coming-soon-icon  { font-size: 2.25rem; opacity: 0.5; }
+.adm-coming-soon-title { font-size: 1rem; font-weight: 600; color: var(--text); }
+.adm-coming-soon-sub   { font-size: 0.78rem; color: var(--text-soft); max-width: 300px; line-height: 1.7; }
+
+/* ── Forbidden hint ──────────────────────────────────────────────────────── */
+.adm-forbidden-hint {
+  font-size: 0.72rem;
+  color: var(--text-soft);
+  max-width: 300px;
+  line-height: 1.6;
+}
+
+/* ── Network tree ────────────────────────────────────────────────────────── */
+.adm-tree,
+.adm-tree-children {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.adm-tree-children {
+  border-left: 1px solid var(--border);
+  margin-left: 0.6rem;
+}
+
+.adm-tree-node {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.35rem;
+  transition: background 160ms ease;
+}
+
+.adm-tree-node:hover {
+  background: rgba(56, 189, 248, 0.04);
+}
+
+.adm-tree-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--border-md);
+}
+
+.adm-tree-dot[data-active='true'] {
+  background: var(--success);
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.4);
+}
+
+.adm-tree-name {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.adm-tree-meta {
+  font-size: 0.63rem;
+  color: var(--text-soft);
+  margin-left: auto;
+}
+
+.adm-badge--xs {
+  font-size: 0.55rem;
+  padding: 0.12rem 0.45rem;
+}
+
+/* ── Top sponsors list ───────────────────────────────────────────────────── */
+.adm-top-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.adm-top-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.4rem;
+  background: rgba(56, 189, 248, 0.03);
+  border: 1px solid rgba(103, 196, 243, 0.07);
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.adm-top-item:hover {
+  background: rgba(56, 189, 248, 0.06);
+  border-color: var(--border);
+}
+
+.adm-top-rank {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--text-soft);
+  min-width: 1.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.adm-top-item:nth-child(1) .adm-top-rank { color: #fbbf24; }
+.adm-top-item:nth-child(2) .adm-top-rank { color: var(--sky); }
+.adm-top-item:nth-child(3) .adm-top-rank { color: var(--accent); }
+
+.adm-top-name {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Section header with icon ────────────────────────────────────────────── */
+.adm-section-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-soft);
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 1.25rem;
+}
+
+.adm-section-head-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+
+/* ── Rede MLM Admin — estilos exclusivos ────────────────────────────────── */
+
+/* Layout da página rede */
+.adm-rede-layout {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+/* Breakpoints definidos no bloco principal abaixo (≥ linha 2420) */
+
+
+/* Card da árvore — scroll horizontal para redes grandes */
+.adm-rede-tree-card {
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.adm-rede-tree-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+  padding-bottom: 1rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(56,189,248,0.2) transparent;
+  /* Indicador visual de scroll */
+  position: relative;
+}
+.adm-rede-tree-scroll::-webkit-scrollbar { height: 6px; }
+.adm-rede-tree-scroll::-webkit-scrollbar-track { background: rgba(255,255,255,0.03); border-radius: 3px; }
+.adm-rede-tree-scroll::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.25); border-radius: 3px; }
+
+/* Card head padronizado */
+.adm-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+/* Legenda de cores por nível */
+.adm-rede-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  margin-bottom: 1.25rem;
+  padding: 0.6rem 0.75rem;
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+}
+
+.adm-rede-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.adm-rede-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.adm-rede-legend-dot--newbase {
+  background: transparent;
+  border: 2px dashed rgba(245,158,11,0.8);
+}
+
+/* Container da árvore admin — maior que o portal */
+.adm-ntm-map-container {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2.5rem;
+  min-width: 100%;
+  width: max-content;
+  padding: 0.5rem;
+}
+
+/* Nó que inicia nova base: destaque visual */
+.adm-ntm-node--newbase > .ntm-node-col {
+  position: relative;
+}
+
+.adm-ntm-node--newbase > .ntm-node-col::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border: 1.5px dashed rgba(245,158,11,0.5);
+  border-radius: 14px;
+  pointer-events: none;
+}
+
+/* Marcador "Nova Base" acima do nó */
+.adm-ntm-newbase-marker {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #f59e0b;
+  background: rgba(245,158,11,0.08);
+  border: 1px solid rgba(245,158,11,0.22);
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin-bottom: 4px;
+  width: max-content;
+  align-self: center;
+}
+
+.adm-ntm-newbase-icon {
+  font-size: 0.7rem;
+}
+
+.adm-ntm-newbase-label {
+  font-size: 0.58rem;
+}
+
+/* Ring colorido por nível na base */
+.ntm-circle {
+  --ntm-ring-color: var(--accent);
+}
+.ntm-circle--active {
+  box-shadow: 0 0 0 2px var(--ntm-ring-color, var(--accent)), 0 4px 12px color-mix(in srgb, var(--ntm-ring-color, var(--accent)) 20%, transparent);
+}
+.adm-ntm-circle--newbase {
+  box-shadow: 0 0 0 2px var(--ntm-ring-color, #f59e0b), 0 0 0 4px rgba(245,158,11,0.15), 0 4px 12px rgba(245,158,11,0.2);
+}
+
+/* Badge nível na base inline */
+.adm-ntm-level-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.58rem;
+  font-weight: 700;
+  border: 1px solid;
+  border-radius: 3px;
+  padding: 1px 5px;
+  letter-spacing: 0.04em;
+  margin-top: 2px;
+  transition: opacity 120ms;
+}
+
+.adm-ntm-plan-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE NAV — Topbar + Drawer
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Topbar (só mobile) ── */
+.adm-mobile-topbar {
+  display: none; /* oculto no desktop */
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  background: rgba(3, 11, 19, 0.96);
+  border-bottom: 1px solid rgba(103, 196, 243, 0.14);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.adm-mobile-topbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0 1rem;
+  height: 56px;
+}
+
+.adm-mobile-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.adm-mobile-page-title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(216, 226, 236, 0.75);
+  flex: 1;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 0.5rem;
+}
+
+.adm-mobile-menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(103, 196, 243, 0.14);
+  color: rgba(216, 226, 236, 0.9);
+  cursor: pointer;
+  transition: background 140ms, border-color 140ms, color 140ms;
+  flex-shrink: 0;
+}
+
+.adm-mobile-menu-btn:hover {
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+}
+
+/* ── Overlay ── */
+.adm-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 210;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: adm-overlay-in 180ms ease forwards;
+}
+
+@keyframes adm-overlay-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* ── Drawer ── */
+.adm-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 220;
+  width: 280px;
+  max-width: 88vw;
+  height: 100dvh;
+  background: linear-gradient(180deg, rgba(7,20,31,0.99) 0%, rgba(3,11,19,0.99) 100%);
+  border-right: 1px solid rgba(103, 196, 243, 0.18);
+  display: flex;
+  flex-direction: column;
+  transform: translateX(-100%);
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.adm-drawer::-webkit-scrollbar { display: none; }
+
+.adm-drawer--open {
+  transform: translateX(0);
+}
+
+.adm-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1rem 1rem;
+  border-bottom: 1px solid rgba(103, 196, 243, 0.12);
+  flex-shrink: 0;
+}
+
+.adm-drawer-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(103, 196, 243, 0.14);
+  color: rgba(216, 226, 236, 0.7);
+  cursor: pointer;
+  transition: background 140ms, color 140ms;
+  flex-shrink: 0;
+}
+
+.adm-drawer-close:hover {
+  background: rgba(248, 113, 113, 0.1);
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.2);
+}
+
+.adm-drawer-nav {
+  flex: 1;
+  padding: 0.75rem;
+  overflow-y: auto;
+}
+
+.adm-drawer-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.875rem;
+  border-radius: 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: rgba(163, 178, 195, 0.82);
+  text-decoration: none;
+  transition: color 140ms, background 140ms, border-color 140ms;
+  border: 1px solid transparent;
+  margin-bottom: 2px;
+}
+
+.adm-drawer-link:hover {
+  color: #f3f9fd;
+  background: rgba(56, 189, 248, 0.06);
+  border-color: rgba(103, 196, 243, 0.14);
+}
+
+.adm-drawer-link--active {
+  color: #f3f9fd;
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(125, 211, 252, 0.2);
+  box-shadow: inset 3px 0 0 rgba(56, 189, 248, 0.6);
+}
+
+.adm-drawer-link--active .adm-sidebar-link-icon,
+.adm-drawer-link:hover .adm-sidebar-link-icon {
+  color: #38bdf8;
+}
+
+.adm-drawer-footer {
+  padding: 1rem;
+  border-top: 1px solid rgba(103, 196, 243, 0.12);
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BREAKPOINTS — Mobile ≤ 768px
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+  /* Shell: column para empilhar topbar + content */
+  .adm-shell {
+    flex-direction: column;
+  }
+
+  /* Sidebar desktop: ocultar */
+  .adm-sidebar {
+    display: none;
+  }
+
+  /* Topbar mobile: mostrar */
+  .adm-mobile-topbar {
+    display: block;
+  }
+
+  /* Content area: padding-top para não ficar atrás do topbar */
+  .adm-content-area {
+    padding-top: 56px;
+  }
+
+  /* ── adm-page ── */
+  .adm-page {
+    padding: 1.25rem 1rem;
+  }
+
+  .adm-page-title {
+    font-size: 1.2rem;
+  }
+
+  .adm-page-sub {
+    font-size: 0.76rem;
+  }
+
+  .adm-page-header {
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+  }
+
+  .adm-role-badge,
+  .adm-page-kicker {
+    align-self: flex-start;
+  }
+
+  /* ── Stats grid ── */
+  .adm-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+
+  .adm-stat-card {
+    padding: 1rem;
+  }
+
+  .adm-stat-value {
+    font-size: 1.2rem;
+  }
+
+  /* ── Tables: scroll horizontal ── */
+  .adm-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: var(--radius);
+  }
+
+  .adm-table {
+    min-width: 560px;
+    font-size: 0.75rem;
+  }
+
+  .adm-table th,
+  .adm-table td {
+    padding: 0.65rem 0.75rem;
+    white-space: nowrap;
+  }
+
+  /* ── Filters / toolbar ── */
+  .adm-filters,
+  .adm-toolbar {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: stretch;
+  }
+
+  .adm-search-wrap {
+    width: 100%;
+  }
+
+  .adm-search-input {
+    width: 100%;
+  }
+
+  /* ── Cards grid ── */
+  .adm-cards-grid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  /* ── Rede tree: scroll horizontal ── */
+  .rnt-map {
+    padding: 1rem 0;
+  }
+
+  /* ── Panel pairs (2 cols → 1 col) ── */
+  .adm-panel-pair {
+    grid-template-columns: 1fr;
+  }
+
+  /* ── Modals / sheets: full width ── */
+  .adm-modal-panel {
+    width: 100%;
+    max-width: 100%;
+    border-radius: var(--radius) var(--radius) 0 0;
+    margin-top: auto;
+  }
+
+  /* ── Botões: empilhar em telas muito pequenas ── */
+  .adm-btn-group {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .adm-btn-group .adm-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ── Extra small (< 400px) ── */
+@media (max-width: 400px) {
+  .adm-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .adm-page {
+    padding: 1rem 0.75rem;
+  }
+
+  .adm-page-title {
+    font-size: 1.05rem;
+  }
+
+  .adm-mobile-topbar-inner {
+    padding: 0 0.75rem;
+  }
+
+  .adm-stat-value {
+    font-size: 1.05rem;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BREAKPOINTS — Tablet 769–1024px
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  :root, .adm-shell, .adm-login-page {
+    --sidebar-w: 200px;
+  }
+
+  .adm-page {
+    padding: 1.5rem 1.5rem;
+  }
+
+  .adm-stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.875rem;
+  }
+
+  .adm-sidebar-link span {
+    font-size: 0.72rem;
+  }
+}
+
+/* Oculta mobile nav no desktop */
+@media (min-width: 769px) {
+  .adm-mobile-topbar { display: none !important; }
+  .adm-drawer        { display: none !important; }
+  .adm-drawer-overlay{ display: none !important; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TABS (filtros tipo saques / comissoes)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-bottom: 1.25rem;
+  border-bottom: none;       /* cancela o border-bottom da 1ª definição */
+  padding-bottom: 0;         /* cancela o padding-bottom da 1ª definição */
+}
+
+.adm-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.4rem 0.875rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: var(--text-soft);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  border-bottom: 1px solid var(--border);  /* cancela o border-bottom:none da 1ª */
+  top: 0;                                  /* cancela o top:1px da 1ª definição */
+  text-decoration: none;
+  transition: color 140ms, background 140ms, border-color 140ms;
+  white-space: nowrap;
+  position: relative;
+}
+
+.adm-tab:hover {
+  color: var(--text);
+  background: rgba(56, 189, 248, 0.07);
+  border-color: rgba(125, 211, 252, 0.25);
+}
+
+.adm-tab--active {
+  color: var(--text);
+  background: rgba(56, 189, 248, 0.1);
+  border-color: rgba(125, 211, 252, 0.3);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.15);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SEARCH ROW (barra de busca + botões)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-search-row {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   INPUT / SELECT genérico
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-input {
+  width: 100%;
+  padding: 0.55rem 0.875rem;
+  font-size: 0.8rem;
+  color: var(--text);
+  background: rgba(7, 20, 31, 0.72);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  outline: none;
+  transition: border-color 160ms, box-shadow 160ms;
+  font-family: inherit;
+  -webkit-font-smoothing: antialiased;
+}
+
+.adm-input::placeholder {
+  color: rgba(163, 178, 195, 0.45);
+}
+
+.adm-input:focus {
+  border-color: rgba(125, 211, 252, 0.4);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BOTÕES GENÉRICOS (.adm-btn)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.55rem 1.1rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border-radius: 0.5rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 140ms, border-color 140ms, color 140ms, box-shadow 140ms;
+  white-space: nowrap;
+  font-family: inherit;
+  line-height: 1;
+}
+
+.adm-btn--ghost {
+  color: var(--text-soft);
+  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--border);
+}
+
+.adm-btn--ghost:hover {
+  color: var(--text);
+  background: rgba(56, 189, 248, 0.07);
+  border-color: rgba(125, 211, 252, 0.25);
+}
+
+.adm-btn--danger {
+  color: var(--danger);
+  background: var(--danger-glow);
+  border-color: rgba(248, 113, 113, 0.2);
+}
+
+.adm-btn--danger:hover {
+  background: rgba(248, 113, 113, 0.2);
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
+.adm-btn--sm {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.7rem;
+}
+
+.adm-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SECTION HEAD (cabeçalho de seção interna)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-section-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  margin: 1.5rem 0 0.875rem;
+}
+
+.adm-section-head-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TABLE META (rodapé da tabela)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-table-meta {
+  font-size: 0.68rem;
+  color: var(--text-soft);
+  letter-spacing: 0.04em;
+  margin-top: 0.875rem;
+  padding-top: 0.625rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PAGINAÇÃO
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-pagination {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.adm-pagination-info {
+  font-size: 0.72rem;
+  color: var(--text-soft);
+  font-variant-numeric: tabular-nums;
+  padding: 0 0.25rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   COMING SOON / EMPTY STATE
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-coming-soon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  padding: 3.5rem 1.5rem;
+  text-align: center;
+}
+
+.adm-coming-soon-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.adm-coming-soon-sub {
+  font-size: 0.78rem;
+  color: var(--text-soft);
+  max-width: 400px;
+  line-height: 1.7;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CODE INLINE
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-code {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+  font-size: 0.72rem;
+  background: rgba(7, 20, 31, 0.72);
+  border: 1px solid var(--border);
+  border-radius: 0.3rem;
+  padding: 0.15rem 0.45rem;
+  color: var(--sky);
+  letter-spacing: 0.02em;
+  font-variant-numeric: slashed-zero;  /* 0 com barra — nunca confunde com O */
+  display: inline-block;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TABLE EMPTY
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-table-empty {
+  text-align: center;
+  padding: 2.5rem 1rem !important;
+  color: var(--text-soft);
+  font-size: 0.78rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CFG GRID (configuracoes page: 2-col layout)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-cfg-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.25rem;
+  margin-top: 0.5rem;
+}
+
+/* Tabelas DENTRO da cfg-grid não precisam de 900px (são simples, 2-3 cols) */
+.adm-cfg-grid .adm-table {
+  min-width: 280px;
+}
+
+/* Inputs dentro da cfg-grid devem ser fluidos */
+.adm-cfg-grid .adm-input {
+  min-width: 0;
+}
+
+/* Sizing helpers for config inputs (override-friendly) */
+.adm-cfg-input-sm { max-width: 100px; }
+.adm-cfg-input-md { max-width: 140px; }
+
+.adm-cfg-lock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2.5rem 1rem;
+  text-align: center;
+}
+
+/* ── Tablet / Notebook (≤ 1024px) ── */
+@media (max-width: 1024px) {
+  .adm-cfg-grid {
+    gap: 1rem;
+  }
+}
+
+/* ── Tablet (≤ 768px) ── collapsa para 1 coluna */
+@media (max-width: 768px) {
+  .adm-cfg-grid {
+    grid-template-columns: 1fr !important;
+    gap: 0.875rem;
+  }
+
+  /* Inline forms: empilhar verticalmente */
+  .adm-cfg-grid .adm-cfg-inline-form {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  /* Remover maxWidth inline dos inputs via !important */
+  .adm-cfg-grid .adm-cfg-inline-form .adm-input,
+  .adm-cfg-grid .adm-cfg-inline-form select.adm-input {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Botões ocupam 100% no mobile */
+  .adm-cfg-grid .adm-cfg-inline-form .adm-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Footer do form: empilhar */
+  .adm-cfg-grid .adm-cfg-form-footer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+
+  .adm-cfg-grid .adm-cfg-form-footer .adm-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Tabela da cfg: ainda mais compacta */
+  .adm-cfg-grid .adm-table {
+    min-width: unset;
+    font-size: 0.76rem;
+  }
+
+  .adm-cfg-grid .adm-table td,
+  .adm-cfg-grid .adm-table th {
+    padding: 0.55rem 0.625rem;
+  }
+
+  /* Inputs dentro da tabela: largura fluida */
+  .adm-cfg-grid .adm-table .adm-input,
+  .adm-cfg-grid .adm-cfg-input-sm,
+  .adm-cfg-grid .adm-cfg-input-md {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Descrição dos cargos: wrap em coluna */
+  .adm-cfg-grid .adm-card-note {
+    line-height: 1.9;
+    word-break: break-word;
+  }
+}
+
+/* ── Mobile (≤ 480px) ── compactar mais */
+@media (max-width: 480px) {
+  .adm-cfg-grid {
+    gap: 0.625rem;
+  }
+
+  .adm-cfg-grid .adm-card {
+    padding: 0.875rem;
+  }
+
+  .adm-cfg-grid .adm-card-title {
+    font-size: 0.58rem;
+  }
+
+  /* Tabela vira card-stack no ultra-mobile */
+  .adm-cfg-grid .adm-table,
+  .adm-cfg-grid .adm-table thead,
+  .adm-cfg-grid .adm-table tbody,
+  .adm-cfg-grid .adm-table th,
+  .adm-cfg-grid .adm-table td,
+  .adm-cfg-grid .adm-table tr {
+    display: block;
+  }
+
+  .adm-cfg-grid .adm-table thead {
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+    visibility: hidden;
+  }
+
+  .adm-cfg-grid .adm-table td {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid rgba(103,196,243,0.06);
+    white-space: normal;
+  }
+
+  .adm-cfg-grid .adm-table td:last-child {
+    border-bottom: none;
+  }
+
+  .adm-cfg-grid .adm-table td .adm-table-muted,
+  .adm-cfg-grid .adm-table td:first-child {
+    font-weight: 600;
+    font-size: 0.72rem;
+  }
+
+  .adm-cfg-grid .adm-table tbody tr {
+    background: rgba(10,25,38,0.4);
+    border: 1px solid var(--border);
+    border-radius: 0.625rem;
+    margin-bottom: 0.5rem;
+    padding: 0.5rem 0.75rem;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MOBILE OVERRIDES — todos os componentes de páginas (≤768px)
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* ── Tabs (filtros) ── */
+  .adm-tabs {
+    gap: 0.25rem;
+    margin-bottom: 1rem;
+  }
+
+  .adm-tab {
+    padding: 0.35rem 0.7rem;
+    font-size: 0.68rem;
+  }
+
+  /* ── Search row ── */
+  .adm-search-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .adm-search-row > div {
+    max-width: 100% !important;
+    flex: unset !important;
+    width: 100% !important;
+  }
+
+  .adm-search-row .adm-btn,
+  .adm-search-row .adm-btn--primary {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* ── Botões: manter legíveis mas menores ── */
+  .adm-btn--primary {
+    padding: 0.55rem 1rem;
+    font-size: 0.75rem;
+  }
+
+  /* ── Tabela: garantir scroll horizontal com box ── */
+  .adm-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    /* hint visual de scroll */
+    background: linear-gradient(to right, rgba(7,20,31,0.01), rgba(7,20,31,0.01)) local,
+                linear-gradient(to right, rgba(103,196,243,0.15), transparent) scroll,
+                linear-gradient(to left, rgba(103,196,243,0.15), transparent) 100% 0 / 100% 100% scroll;
+  }
+
+  .adm-table {
+    min-width: 520px;
+    font-size: 0.74rem;
+  }
+
+  .adm-table th,
+  .adm-table td {
+    padding: 0.6rem 0.75rem;
+    white-space: nowrap;
+  }
+
+  .adm-table-meta {
+    font-size: 0.64rem;
+    margin-top: 0.625rem;
+  }
+
+  /* ── Paginação ── */
+  .adm-pagination {
+    justify-content: center;
+    margin-top: 1rem;
+    gap: 0.5rem;
+  }
+
+  /* ── Cards genéricos ── */
+  .adm-card {
+    padding: 1rem;
+  }
+
+  /* ── CFG grid: 2 colunas → 1 coluna ── */
+  .adm-cfg-grid {
+    grid-template-columns: 1fr;
+    gap: 0.875rem;
+  }
+
+  /* Override para seções que usam gridColumn '1/-1' na cfg ── */
+  .adm-cfg-grid section[style*="gridColumn"],
+  .adm-cfg-grid section[style*="grid-column"] {
+    grid-column: 1 !important;
+  }
+
+  /* ── Section head ── */
+  .adm-section-head {
+    margin: 1rem 0 0.625rem;
+    font-size: 0.58rem;
+  }
+
+  /* ── Code inline: truncar mais curto ── */
+  .adm-code {
+    max-width: 110px;
+    font-size: 0.68rem;
+  }
+
+  /* ── Coming soon / empty state ── */
+  .adm-coming-soon {
+    padding: 2rem 1rem;
+  }
+
+  .adm-coming-soon-title {
+    font-size: 0.92rem;
+  }
+
+  .adm-coming-soon-sub {
+    font-size: 0.73rem;
+  }
+
+  /* ── Welcome notice ── */
+  .adm-welcome-notice {
+    padding: 1rem;
+  }
+
+  .adm-welcome-notice-list {
+    gap: 0.375rem;
+  }
+
+  .adm-welcome-notice-item {
+    font-size: 0.7rem;
+    padding: 0.25rem 0.55rem;
+  }
+
+  /* ── Stats grid — valores menores ── */
+  .adm-stat-card {
+    padding: 0.875rem 1rem;
+    gap: 0.75rem;
+  }
+
+  .adm-stat-icon {
+    width: 1.875rem;
+    height: 1.875rem;
+    min-width: 1.875rem;
+  }
+
+  .adm-stat-value {
+    font-size: 1.15rem;
+  }
+
+  .adm-stat-label {
+    font-size: 0.6rem;
+  }
+
+  /* ── Rede page: scroll horizontal ── */
+  [class*="rede-"] {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ── Garantir que containers largos não estourem o viewport ── */
+  /* Exceto o card da árvore que tem scroll próprio */
+  .adm-page > *:not(.adm-rede-layout) {
+    max-width: 100%;
+  }
+}
+
+/* ── Extra small < 400px ── */
+@media (max-width: 400px) {
+  /* Tabs em linha reduzida */
+  .adm-tab {
+    padding: 0.28rem 0.55rem;
+    font-size: 0.62rem;
+    gap: 0.25rem;
+  }
+
+  .adm-table th,
+  .adm-table td {
+    padding: 0.5rem 0.6rem;
+  }
+
+  .adm-card {
+    padding: 0.875rem;
+  }
+
+  .adm-btn {
+    padding: 0.5rem 0.875rem;
+    font-size: 0.72rem;
+  }
+
+  .adm-btn--primary {
+    font-size: 0.72rem;
+    padding: 0.5rem 0.875rem;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSIVE TABLE → CARD STACK (mobile)
+   Técnica: display:block em todos os elementos da tabela, esconde <thead>,
+   usa ::before com attr(data-label) para mostrar o nome da coluna.
+   ELIMINA 100% do scroll horizontal.
+   ═══════════════════════════════════════════════════════════════════════════ */
+@media (max-width: 640px) {
+
+  /* ── Remover min-width que forçava scroll ── */
+  .adm-table {
+    min-width: unset;
+    width: 100%;
+    font-size: 0.78rem;
+  }
+
+  /* ── Converter toda a tabela em bloco ── */
+  .adm-table,
+  .adm-table thead,
+  .adm-table tbody,
+  .adm-table th,
+  .adm-table td,
+  .adm-table tr {
+    display: block;
+  }
+
+  /* ── Esconder o cabeçalho (colunas viram labels via ::before) ── */
+  .adm-table thead {
+    position: absolute;
+    top: -9999px;
+    left: -9999px;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  /* ── Cada row vira um card ── */
+  .adm-table tbody tr {
+    background: linear-gradient(180deg, rgba(10,25,38,0.75), rgba(4,14,23,0.65));
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    margin-bottom: 0.625rem;
+    padding: 0.625rem 0.875rem;
+    overflow: hidden;
+    transition: border-color 140ms;
+  }
+
+  .adm-table tbody tr:hover {
+    border-color: var(--border-md);
+    background: rgba(56,189,248,0.04);
+  }
+
+  /* ── Remover border-bottom individual das células ── */
+  .adm-table tbody tr:last-child td { border-bottom: unset; }
+
+  /* ── Cada <td> vira uma linha label:valor ── */
+  .adm-table td {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid rgba(103,196,243,0.06);
+    white-space: normal; /* wrap em vez de nowrap */
+    word-break: break-word;
+    min-height: unset;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Remover separador da última td do card */
+  .adm-table td:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  /* Primeira td: um pouco mais de padding no topo para respirar */
+  .adm-table td:first-child {
+    padding-top: 0;
+  }
+
+  /* ── Label via ::before ── */
+  .adm-table td[data-label]::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    width: 7rem;          /* largura fixa do label = alinhamento */
+    min-width: 7rem;
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-soft);
+    opacity: 0.75;
+    padding-top: 0.1rem; /* micro-alinhamento vertical */
+    line-height: 1.4;
+  }
+
+  /* Valor à direita (ocupa o espaço restante) */
+  .adm-table td[data-label] > *,
+  .adm-table td[data-label]:not(:empty) {
+    flex: 1;
+  }
+
+  /* ── Corrigir células especiais ── */
+  /* adm-code: sem truncar no mobile */
+  .adm-table .adm-code {
+    max-width: unset;
+    white-space: normal;
+    word-break: break-all;
+    font-size: 0.71rem;
+  }
+
+  /* adm-table-name: flex no mobile também para badges visíveis */
+  .adm-table .adm-table-name {
+    font-size: 0.82rem;
+    font-weight: 600;
+    max-width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    flex-wrap: nowrap;
+  }
+
+  .adm-table .adm-table-name__text {
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+
+  .adm-table .adm-table-muted {
+    font-size: 0.72rem;
+  }
+
+  /* THEAD dos blocos read-only das configuracoes: simples 2 col = ok */
+  .adm-table.adm-table--simple thead {
+    position: static;
+    visibility: visible;
+    display: table-header-group;
+  }
+  .adm-table.adm-table--simple,
+  .adm-table.adm-table--simple thead,
+  .adm-table.adm-table--simple tbody,
+  .adm-table.adm-table--simple th,
+  .adm-table.adm-table--simple td,
+  .adm-table.adm-table--simple tr {
+    display: revert;
+  }
+
+  /* ── Tabela wrap: sem border/min-width, deixar fluir ── */
+  .adm-table-wrap {
+    border: none;
+    border-radius: 0;
+    overflow-x: unset;
+    background: none;
+  }
+
+  /* ── Ações dentro de card: botão em linha ── */
+  .adm-table td[data-label="Ações"] {
+    padding-top: 0.625rem;
+    border-top: 1px solid rgba(103,196,243,0.08);
+    border-bottom: none;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .adm-table td[data-label="Ações"]::before {
+    display: none; /* omitir label "Ações" — auto-explicativo */
+  }
+
+  /* ── Stats grid: forçar 2 colunas no celular pequeno ── */
+  .adm-stats-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* ── Tablet estreito 640-768px: manter tabela mas reduzir padding ── */
+@media (min-width: 641px) and (max-width: 768px) {
+  .adm-table {
+    min-width: unset;
+    font-size: 0.74rem;
+  }
+
+  .adm-table th,
+  .adm-table td {
+    padding: 0.65rem 0.75rem;
+    white-space: nowrap;
+  }
+
+  .adm-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 0.75rem;
+    border: 1px solid var(--border);
+  }
+}
+
+/* ── Extra small ≤360px: label mais curto ── */
+@media (max-width: 360px) {
+  .adm-table td[data-label]::before {
+    width: 5.5rem;
+    min-width: 5.5rem;
+    font-size: 0.55rem;
+  }
+
+  .adm-stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   REDE PAGE — layout e classes específicas
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Layout: 2 colunas (árvore + painel lateral) */
+.adm-rede-layout {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 1.25rem;
+  align-items: start;
+}
+
+/* Card head: flex row com ícone + título — NUNCA quebra linha */
+.adm-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+/* Scroll da árvore visual */
+.adm-rede-tree-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.5rem;
+}
+
+/* Legenda de níveis */
+.adm-rede-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+  margin-bottom: 1rem;
+  padding: 0.625rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+}
+
+.adm-rede-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.adm-rede-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.adm-rede-legend-dot--newbase {
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255,255,255,0.3),
+    rgba(255,255,255,0.3) 2px,
+    transparent 2px,
+    transparent 4px
+  );
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+/* Top patrocinadores */
+.adm-top-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.adm-top-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.45rem 0.625rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(103, 196, 243, 0.07);
+  background: rgba(255, 255, 255, 0.02);
+  transition: background 140ms, border-color 140ms;
+}
+
+.adm-top-item:hover {
+  background: rgba(56, 189, 248, 0.05);
+  border-color: var(--border);
+}
+
+.adm-top-rank {
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: var(--text-soft);
+  letter-spacing: 0.05em;
+  width: 1.75rem;
+  flex-shrink: 0;
+}
+
+.adm-top-name {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── REDE: Responsive ──
+   O media query usa viewport width. Com o adm-sidebar de ~230px,
+   o content area é viewport - 230px. Não colapsar antes de 640px
+   para evitar que o layout quebre em desktops de 1024px.        */
+
+@media (max-width: 640px) {
+  /* Layout: 2 colunas → 1 coluna (mobile) */
+  .adm-rede-layout {
+    grid-template-columns: 1fr;
+  }
+
+  /* Painel lateral: 2 cards lado-a-lado abaixo da árvore */
+  .adm-rede-side {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.875rem;
+  }
+
+  /* Legenda: wrap compacto */
+  .adm-rede-legend {
+    gap: 0.375rem;
+    padding: 0.5rem;
+  }
+
+  .adm-rede-legend-item {
+    font-size: 0.62rem;
+  }
+
+  /* Árvore: scroll horizontal */
+  .adm-rede-tree-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 0 0.5rem;
+  }
+
+  /* Top list: horizontal no mobile */
+  .adm-top-list {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 0.375rem;
+  }
+
+  .adm-top-item {
+    flex: 1 1 calc(50% - 0.375rem);
+    min-width: 140px;
+  }
+
+  .adm-top-name {
+    font-size: 0.72rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .adm-rede-side {
+    grid-template-columns: 1fr;
+  }
+
+  .adm-top-item {
+    flex: 1 1 100%;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BOTÃO ÍCONE (editar, excluir, etc.)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.875rem;
+  height: 1.875rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.adm-btn-icon:hover {
+  background: rgba(56,189,248,0.08);
+  color: var(--accent);
+  border-color: rgba(56,189,248,0.25);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   MODAL — <dialog> nativo
+   ═══════════════════════════════════════════════════════════════════════════ */
+.adm-modal {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(530px, calc(100vw - 2rem));
+  max-height: calc(100dvh - 3rem);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: var(--card);
+  color: var(--text);
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.55), 0 0 0 1px rgba(56,189,248,0.08);
+  outline: none;
+}
+
+/* backdrop nativo do <dialog> */
+.adm-modal::backdrop {
+  background: rgba(3,11,19,0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.adm-modal-inner {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  max-height: calc(100dvh - 3rem);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+/* Cabeçalho */
+.adm-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.5rem 1.5rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.adm-modal-kicker {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 0.25rem;
+}
+
+.adm-modal-title {
+  font-size: 1.1rem;
+  font-weight: 650;
+  color: var(--text);
+  margin: 0;
+}
+
+.adm-modal-close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.875rem;
+  height: 1.875rem;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.adm-modal-close:hover {
+  background: rgba(248,113,113,0.1);
+  color: #f87171;
+  border-color: rgba(248,113,113,0.3);
+}
+
+/* Form */
+.adm-modal-form {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.adm-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem 1.25rem;
+}
+
+.adm-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.adm-form-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.adm-form-hint {
+  font-size: 0.65rem;
+  font-weight: 500;
+  opacity: 0.6;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.adm-form-select {
+  width: 100%;
+  height: 2.625rem;
+  padding: 0 2.25rem 0 0.875rem;
+  background: rgba(7, 20, 31, 0.8);
+  border: 1px solid var(--border);
+  border-radius: 0.6rem;
+  color: var(--text);
+  font-size: 0.875rem;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  transition: border-color 0.15s;
+}
+.adm-form-select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(56,189,248,0.12);
+}
+
+/* Feedback */
+.adm-form-feedback {
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.5rem;
+  margin: 0;
+}
+.adm-form-feedback--ok {
+  background: rgba(34,197,94,0.1);
+  color: var(--success);
+  border: 1px solid rgba(34,197,94,0.25);
+}
+.adm-form-feedback--err {
+  background: rgba(248,113,113,0.1);
+  color: #f87171;
+  border: 1px solid rgba(248,113,113,0.25);
+}
+
+/* Rodapé do form */
+.adm-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  margin-top: 0.25rem;
+}
+
+/* Responsivo */
+@media (max-width: 520px) {
+  .adm-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .adm-modal-actions {
+    flex-direction: column-reverse;
+  }
+  .adm-modal-actions .adm-btn {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+  }
+}
+
+/* ─── Modal Edit — extensões premium ───────────────────────────────────────── */
+
+/* Modal mais largo para respiro */
+.adm-modal--edit {
+  width: min(580px, calc(100vw - 2rem));
+}
+
+/* Subtítulo do header — status ativo/inativo */
+.adm-modal-head-info { display: flex; flex-direction: column; gap: 0.1rem; }
+
+.adm-modal-subtitle {
+  margin: 0.3rem 0 0;
+  font-size: 0.72rem;
+  color: var(--text-soft);
+  font-weight: 500;
+}
+
+/* Badge "Desativado" inline no title */
+.adm-modal-badge-disabled {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.6rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--danger);
+  background: var(--danger-glow);
+  border: 1px solid rgba(248,113,113,0.25);
+  vertical-align: middle;
+}
+
+/* Seções internas do modal */
+.adm-modal-section {
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.adm-modal-section + .adm-modal-section {
+  border-top: 1px solid var(--border);
+}
+
+/* Seção de acesso com fundo ligeiramente diferente */
+.adm-modal-section--access {
+  background: rgba(7, 20, 31, 0.55);
+  border-top: 1px solid var(--border) !important;
+}
+
+/* Título da seção */
+.adm-modal-section-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--sky);
+  margin: 0;
+  opacity: 0.75;
+}
+
+/* Linha de controle de acesso */
+.adm-access-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.adm-access-info {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Dot de status — verde ou vermelho */
+.adm-access-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.adm-access-dot--on {
+  background: var(--success);
+  box-shadow: 0 0 6px rgba(52,211,153,0.6);
+}
+.adm-access-dot--off {
+  background: var(--danger);
+  box-shadow: 0 0 6px rgba(248,113,113,0.5);
+}
+
+.adm-access-text {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   BASE DE CONHECIMENTO IA AXE
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* KB page icon */
+.adm-kb-page-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(167,139,250,.18) 0%, rgba(99,102,241,.08) 100%);
+  border: 1px solid rgba(167,139,250,.25);
+  color: #a78bfa;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* Modal overlay + panel (substitui <dialog> nativo que não vai para top layer sem showModal()) */
+.adm-kb-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(3, 11, 19, 0.75);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  padding: 1.5rem;
+}
+.adm-kb-modal-panel {
+  position: relative;
+  width: min(540px, 100%);
+  max-height: calc(100dvh - 3rem);
+  overflow-y: auto;
+  background: #0f1f2e;
+  border: 1px solid rgba(56, 189, 248, 0.15);
+  border-radius: 1rem;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(56,189,248,0.06);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,.1) transparent;
+}
+
+
+/* Stats strip */
+.adm-kb-stats {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.adm-kb-stat {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 18px;
+  flex: 1;
+  min-width: 130px;
+}
+.adm-kb-stat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: rgba(255,255,255,.04);
+  flex-shrink: 0;
+}
+.adm-kb-stat-value {
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+  margin-bottom: 2px;
+}
+.adm-kb-stat-label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+/* Root */
+.adm-kb-root { display: flex; flex-direction: column; gap: 24px; }
+
+/* Toolbar */
+.adm-kb-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Tabs */
+.adm-kb-tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  background: rgba(255,255,255,.03);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 4px;
+}
+.adm-kb-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.adm-kb-tab:hover { background: rgba(255,255,255,.05); color: var(--text); }
+.adm-kb-tab--active {
+  background: var(--accent);
+  color: #000;
+}
+.adm-kb-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 20px;
+  background: rgba(255,255,255,.15);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.adm-kb-tab--active .adm-kb-tab-count { background: rgba(0,0,0,.15); }
+
+/* Section */
+.adm-kb-section { display: flex; flex-direction: column; gap: 12px; }
+.adm-kb-section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.adm-kb-section-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.adm-kb-section-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: .02em;
+  text-transform: uppercase;
+}
+.adm-kb-section-count {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* Grid */
+.adm-kb-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+}
+
+/* Card */
+.adm-kb-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  position: relative;
+}
+.adm-kb-card:hover {
+  border-color: rgba(167,139,250,.35);
+  box-shadow: 0 4px 20px rgba(0,0,0,.25);
+}
+.adm-kb-card--inactive { opacity: .5; }
+.adm-kb-card--inactive:hover { opacity: .7; }
+
+.adm-kb-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.adm-kb-badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  padding: 3px 9px;
+  border-radius: 20px;
+  border: 1px solid;
+}
+
+.adm-kb-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: rgba(255,255,255,.04);
+  border: 1px solid var(--border);
+}
+.adm-kb-status--on {
+  color: #34d399;
+  background: rgba(52,211,153,.08);
+  border-color: rgba(52,211,153,.25);
+}
+
+.adm-kb-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.35;
+  margin: 0;
+}
+
+.adm-kb-preview {
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.55;
+  margin: 0;
+  flex: 1;
+}
+
+.adm-kb-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+/* Empty state */
+.adm-kb-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 64px 32px;
+  text-align: center;
+  background: var(--card-bg);
+  border: 1px dashed var(--border);
+  border-radius: 16px;
+  color: var(--muted);
+}
+
+/* Extra form elements for KB modal */
+.adm-kb-small-link {
+  font-size: 0.72rem;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  margin-left: auto;
+  padding: 0;
+  text-decoration: underline;
+}
+.adm-kb-small-link:hover { opacity: .75; }
+
+.adm-textarea {
+  width: 100%;
+  min-height: 220px;
+  resize: vertical;
+  background: rgba(7, 20, 31, 0.8);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  padding: 12px 14px;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+.adm-textarea:focus {
+  outline: none;
+  border-color: rgba(125, 211, 252, 0.4);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1);
+}
+
+.adm-form-hint {
+  font-size: 0.7rem;
+  color: var(--muted);
+  margin-left: 8px;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .adm-kb-grid { grid-template-columns: 1fr; }
+  .adm-kb-toolbar { flex-direction: column; align-items: stretch; }
+  .adm-kb-stats { flex-direction: column; }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   CREATE USER MODAL — namespace cum- (estende eum- sem duplicar base)
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* Avatar verde para criação */
+.eum-avatar--create { background: linear-gradient(135deg, rgba(52,211,153,0.2) 0%, rgba(16,185,129,0.1) 100%); color: #34d399; border-color: rgba(52,211,153,0.18); }
+
+/* Campo senha com botão de toggle */
+.cum-password-wrap   { position: relative; display: flex; align-items: center; }
+.cum-password-input  { width: 100%; padding-right: 3rem !important; }
+.cum-toggle-pwd {
+  position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%);
+  background: none; border: none; cursor: pointer;
+  color: rgba(163,178,195,0.6); transition: color .2s;
+  display: flex; align-items: center; justify-content: center;
+  width: 2rem; height: 2rem; border-radius: 0.375rem;
+}
+.cum-toggle-pwd:hover { color: var(--sky, #38bdf8); background: rgba(56,189,248,0.08); }
+
+/* Info box — código será gerado automaticamente */
+.cum-info-box {
+  display: flex; align-items: flex-start; gap: 0.625rem;
+  background: rgba(56,189,248,0.06); border: 1px solid rgba(56,189,248,0.14);
+  border-radius: 0.75rem; padding: 0.75rem 1rem;
+}
+.cum-info-icon  { font-size: 1rem; flex-shrink: 0; }
+.cum-info-text  { font-size: 0.8rem; color: rgba(163,178,195,0.85); line-height: 1.45; margin: 0; }
+.cum-info-text strong { color: #7dd3fc; font-weight: 600; }
+
+/* Estado de sucesso ─────────────────────────────────────────────────────────── */
+.cum-success {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  padding: 2rem 1.5rem 1.5rem;
+  gap: 0.5rem;
+}
+.cum-success-icon { color: #34d399; margin-bottom: 0.5rem; }
+.cum-success-title { font-size: 1.2rem; font-weight: 700; color: #e2e8f0; margin: 0; }
+.cum-success-sub   { font-size: 0.85rem; color: rgba(163,178,195,0.75); margin: 0.25rem 0 0.75rem; }
+
+.cum-code-box {
+  display: flex; align-items: center; gap: 0.625rem;
+  background: rgba(52,211,153,0.08); border: 1px solid rgba(52,211,153,0.2);
+  border-radius: 0.875rem; padding: 0.75rem 1.125rem; width: 100%;
+  justify-content: space-between;
+}
+.cum-code-value {
+  font-family: 'JetBrains Mono', 'Fira Mono', monospace;
+  font-size: 1.1rem; font-weight: 700; letter-spacing: 0.12em;
+  color: #34d399;
+}
+.cum-code-copy {
+  display: flex; align-items: center; gap: 0.375rem;
+  font-size: 0.8rem; font-weight: 600; color: #34d399;
+  background: rgba(52,211,153,0.12); border: 1px solid rgba(52,211,153,0.2);
+  border-radius: 0.5rem; padding: 0.375rem 0.75rem; cursor: pointer;
+  transition: background .2s, transform .15s; white-space: nowrap;
+}
+.cum-code-copy:hover  { background: rgba(52,211,153,0.22); }
+.cum-code-copy:active { transform: scale(0.96); }
+.cum-success-hint { font-size: 0.78rem; color: rgba(163,178,195,0.55); margin: 0; line-height: 1.4; }
+
+/* Botão accent para "Novo Usuário" na toolbar ───────────────────────────────── */
+.adm-btn--accent {
+  background: linear-gradient(135deg, rgba(52,211,153,0.18) 0%, rgba(16,185,129,0.1) 100%);
+  border: 1px solid rgba(52,211,153,0.3); color: #34d399;
+  font-weight: 600;
+}
+.adm-btn--accent:hover {
+  background: linear-gradient(135deg, rgba(52,211,153,0.28) 0%, rgba(16,185,129,0.18) 100%);
+  border-color: rgba(52,211,153,0.45); box-shadow: 0 0 12px rgba(52,211,153,0.15);
+}
+
+/* Mobile: sucesso / code-box ─────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .cum-success       { padding: 1.5rem 1rem 1rem; }
+  .cum-code-box      { flex-direction: column; gap: 0.5rem; text-align: center; }
+  .cum-code-copy     { width: 100%; justify-content: center; }
+  .cum-code-value    { font-size: 1rem; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   EDIT USER MODAL — namespace eum-
+   Aesthetic: Luxury Dark · Painel de controle financeiro
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+
+
+.eum-dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(560px, calc(100vw - 2rem));
+  max-height: calc(100dvh - 2.5rem);
+  padding: 0;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 1.125rem;
+  background: #070f18;
+  color: #f3f9fd;
+  box-shadow: 0 0 0 1px rgba(56,189,248,0.06), 0 32px 80px rgba(0,0,0,0.72), 0 4px 20px rgba(0,0,0,0.5);
+  overflow: hidden;
+  outline: none;
+}
+.eum-dialog::backdrop {
+  background: rgba(2,7,13,0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.eum-wrap {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 2.5rem);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(125,211,252,0.15) transparent;
+}
+
+/* Header */
+.eum-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem 1.125rem;
+  background: linear-gradient(135deg, rgba(12,28,46,0.95) 0%, rgba(7,15,24,0.95) 100%);
+  border-bottom: 1px solid rgba(125,211,252,0.1);
+  position: relative;
+}
+.eum-header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 3px, rgba(56,189,248,0.012) 3px, rgba(56,189,248,0.012) 4px);
+  pointer-events: none;
+}
+.eum-header-left { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+.eum-eyebrow { font-size: 0.62rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(125,211,252,0.7); }
+.eum-title { font-size: 1.15rem; font-weight: 700; color: #f3f9fd; margin: 0; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+.eum-header-right { display: flex; align-items: center; gap: 0.625rem; flex-shrink: 0; padding-top: 0.125rem; }
+
+/* Status Pill */
+.eum-status-pill { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.65rem; border-radius: 999px; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; border: 1px solid; }
+.eum-status-pill--on  { color: #34d399; background: rgba(52,211,153,0.1);  border-color: rgba(52,211,153,0.3); }
+.eum-status-pill--off { color: #f87171; background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.3); }
+.eum-status-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+/* Close */
+.eum-close { display: inline-flex; align-items: center; justify-content: center; width: 1.875rem; height: 1.875rem; border-radius: 50%; border: 1px solid rgba(125,211,252,0.15); background: rgba(56,189,248,0.05); color: rgba(163,178,195,0.7); cursor: pointer; transition: all 0.15s; }
+.eum-close:hover { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.3); color: #f87171; }
+
+/* Body */
+.eum-body { padding: 1.25rem 1.5rem; display: flex; flex-direction: column; gap: 1.25rem; }
+
+/* Section label */
+.eum-section-label { display: flex; align-items: center; gap: 0.625rem; font-size: 0.65rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(125,211,252,0.6); margin: 0; flex-direction: row-reverse; }
+.eum-section-line { flex: 1; height: 1px; background: linear-gradient(90deg, rgba(125,211,252,0.2) 0%, transparent 100%); }
+
+/* Grid */
+.eum-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.875rem 1.125rem; }
+.eum-field { display: flex; flex-direction: column; gap: 0.4rem; }
+.eum-field--full { grid-column: 1 / -1; }
+.eum-label { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(163,178,195,0.75); display: flex; align-items: center; gap: 0.25rem; }
+.eum-unit { font-size: 0.62rem; opacity: 0.55; font-weight: 500; text-transform: none; letter-spacing: 0; }
+
+/* Input */
+.eum-input { width: 100%; height: 2.5rem; padding: 0 0.875rem; background: rgba(7,20,31,0.9); border: 1px solid rgba(103,196,243,0.16); border-radius: 0.625rem; color: #f3f9fd; font-size: 0.88rem; font-weight: 500; transition: border-color 0.15s, box-shadow 0.15s; outline: none; }
+.eum-input::placeholder { color: rgba(163,178,195,0.35); }
+.eum-input:focus { border-color: rgba(56,189,248,0.5); box-shadow: 0 0 0 3px rgba(56,189,248,0.1); }
+
+/* Select */
+.eum-select-wrap { position: relative; }
+.eum-select { width: 100%; height: 2.5rem; padding: 0 2.25rem 0 0.875rem; background: rgba(7,20,31,0.9); border: 1px solid rgba(103,196,243,0.16); border-radius: 0.625rem; color: #f3f9fd; font-size: 0.88rem; font-weight: 500; appearance: none; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; outline: none; }
+.eum-select:focus { border-color: rgba(56,189,248,0.5); box-shadow: 0 0 0 3px rgba(56,189,248,0.1); }
+.eum-select option { background: #070f18; }
+.eum-select-icon { position: absolute; right: 0.75rem; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: rgba(125,211,252,0.5); pointer-events: none; }
+
+/* Feedback */
+.eum-feedback { font-size: 0.8rem; font-weight: 500; padding: 0.625rem 0.875rem; border-radius: 0.5rem; border: 1px solid; margin: 0; }
+.eum-feedback--ok  { color: #34d399; background: rgba(52,211,153,0.08);  border-color: rgba(52,211,153,0.25); }
+.eum-feedback--err { color: #f87171; background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.25); }
+
+/* Actions */
+.eum-actions { display: flex; justify-content: flex-end; gap: 0.625rem; padding-top: 0.75rem; border-top: 1px solid rgba(103,196,243,0.1); }
+
+/* Botões */
+.eum-btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.375rem; padding: 0 1.125rem; height: 2.25rem; border-radius: 0.625rem; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.04em; cursor: pointer; border: 1px solid; transition: all 0.15s; white-space: nowrap; }
+.eum-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.eum-btn--primary { background: linear-gradient(135deg,#38bdf8 0%,#0ea5e9 100%); border-color: #38bdf8; color: #030b13; box-shadow: 0 4px 14px rgba(56,189,248,0.3); }
+.eum-btn--primary:hover:not(:disabled) { background: linear-gradient(135deg,#7dd3fc 0%,#38bdf8 100%); box-shadow: 0 4px 20px rgba(56,189,248,0.45); }
+.eum-btn--ghost { background: transparent; border-color: rgba(103,196,243,0.2); color: rgba(163,178,195,0.8); }
+.eum-btn--ghost:hover:not(:disabled) { background: rgba(56,189,248,0.06); border-color: rgba(125,211,252,0.35); color: #f3f9fd; }
+.eum-btn--danger  { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.35); color: #f87171; }
+.eum-btn--danger:hover:not(:disabled)  { background: rgba(248,113,113,0.18); box-shadow: 0 0 12px rgba(248,113,113,0.2); }
+.eum-btn--success { background: rgba(52,211,153,0.1);  border-color: rgba(52,211,153,0.35);  color: #34d399; }
+.eum-btn--success:hover:not(:disabled) { background: rgba(52,211,153,0.18);  box-shadow: 0 0 12px rgba(52,211,153,0.2); }
+.eum-btn--sm { padding: 0 0.875rem; height: 2rem; font-size: 0.75rem; border-radius: 0.5rem; }
+
+/* Access block */
+.eum-access-block { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; padding: 1rem 1.5rem; border-top: 1px solid rgba(103,196,243,0.1); background: rgba(5,14,22,0.7); }
+.eum-access-block--off { background: rgba(30,10,10,0.55); border-top-color: rgba(248,113,113,0.15); }
+.eum-access-info { flex: 1; min-width: 0; }
+.eum-access-title { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(163,178,195,0.65); margin: 0 0 0.2rem; }
+.eum-access-desc { font-size: 0.8rem; color: rgba(163,178,195,0.85); margin: 0; line-height: 1.4; }
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   EDIT USER MODAL — RESPONSIVIDADE COMPLETA
+   320px (iPhone SE) → 1366px (iPad Pro landscape)
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Handle visual de arraste — mobile bottom-sheet ── */
+.eum-drag-handle {
+  display: none;
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(125,211,252,0.25);
+  margin: 0 auto 0.5rem;
+  flex-shrink: 0;
+}
+
+/* ── iPad Pro landscape / Desktop grande (≥ 1025px) ──────────────────────── */
+@media (min-width: 1025px) {
+  .eum-dialog {
+    width: min(600px, calc(100vw - 4rem));
+  }
+}
+
+/* ── iPad / Tablet (601px – 1024px) — modal centralizado ─────────────────── */
+@media (min-width: 601px) and (max-width: 1024px) {
+  .eum-dialog {
+    width: min(520px, calc(100vw - 3rem));
+    max-height: calc(100dvh - 4rem);
+    border-radius: 1.125rem;
+  }
+  .eum-wrap {
+    max-height: calc(100dvh - 4rem);
+  }
+  /* Tabela: ocultar colunas menos críticas no tablet */
+  .adm-table th:nth-child(5),
+  .adm-table td:nth-child(5) { display: none; }
+
+  .adm-stats-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+}
+
+/* ── Mobile (≤ 600px) — bottom-sheet + tabela em cards ──────────────────── */
+@media (max-width: 600px) {
+
+  /* ── Page layout ── */
+  .adm-page           { padding: 0.875rem 0.75rem !important; }
+  .adm-stats-grid     { grid-template-columns: 1fr 1fr; gap: 0.625rem; }
+  .adm-stat-card      { padding: 0.75rem 0.875rem; gap: 0.625rem; }
+  .adm-stat-value     { font-size: 1rem; }
+  .adm-page-title     { font-size: 1.15rem; }
+  .adm-page-header    { flex-wrap: wrap; gap: 0.5rem; }
+  .adm-role-badge     { font-size: 0.68rem; }
+
+  /* ── Search ── */
+  .adm-search-row { flex-direction: column !important; gap: 0.5rem; }
+  .adm-search-row > div,
+  .adm-search-row .adm-btn,
+  .adm-search-row a.adm-btn {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box;
+    justify-content: center;
+  }
+
+  /* ── Tabela → Cards ── */
+  .adm-table-wrap  { overflow-x: unset; border-radius: 0; background: transparent; }
+  .adm-table       { display: block; }
+  .adm-table thead { display: none; }
+  .adm-table tbody { display: flex; flex-direction: column; gap: 0.75rem; }
+  .adm-table tr {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "member action"
+      "code   code"
+      "plan   plan"
+      "monthly monthly";
+    gap: 0.4rem 0.75rem;
+    background: rgba(12,25,40,0.9);
+    border: 1px solid rgba(103,196,243,0.12);
+    border-radius: 0.875rem;
+    padding: 0.875rem 1rem;
+  }
+  .adm-table tr:hover { border-color: rgba(56,189,248,0.22); }
+  .adm-table td {
+    padding: 0;
+    border: none;
+    font-size: 0.82rem;
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+  .adm-table td:nth-child(1) { grid-area: member; flex-direction: column; align-items: flex-start; gap: 0.1rem; }
+  .adm-table td:nth-child(2) { grid-area: code; font-size: 0.75rem; }
+  .adm-table td:nth-child(2)::before { content: "Código:"; font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-soft); opacity: 0.6; }
+  .adm-table td:nth-child(3) { grid-area: plan; }
+  .adm-table td:nth-child(3)::before { content: "Plano:"; font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-soft); opacity: 0.6; }
+  .adm-table td:nth-child(4) { display: none; } /* Cashback */
+  .adm-table td:nth-child(5) { display: none; } /* Investimento */
+  .adm-table td:nth-child(6) { grid-area: monthly; }
+  .adm-table td:nth-child(6)::before { content: "Mensalidade:"; font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-soft); opacity: 0.6; }
+  .adm-table td:nth-child(7) { display: none; } /* Cadastro */
+  .adm-table td:nth-child(8) { grid-area: action; justify-content: flex-end; align-items: flex-start; }
+
+  /* ── Paginação ── */
+  .adm-pagination          { flex-wrap: wrap; gap: 0.5rem; justify-content: center; }
+  .adm-pagination .adm-btn { flex: 1; min-width: 110px; justify-content: center; }
+  .adm-table-meta          { text-align: center; font-size: 0.75rem; }
+
+  /* ── Modal — bottom-sheet ── */
+  .eum-dialog {
+    /* Posição: ancora na borda inferior */
+    position: fixed !important;
+    inset: auto 0 0 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: unset !important;
+    /* Altura máxima: quase toda a tela, com margem pro notch */
+    max-height: calc(94dvh - env(safe-area-inset-top, 0px)) !important;
+    /* Bordas arredondadas só no topo */
+    border-radius: 1.375rem 1.375rem 0 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: none !important;
+  }
+  .eum-wrap {
+    max-height: calc(94dvh - env(safe-area-inset-top, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0.75rem);
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+  /* Handle de arraste visível */
+  .eum-drag-handle { display: block; }
+  .eum-header {
+    padding: 0.5rem 1.125rem 0.875rem !important;
+    /* Handle integrado no topo */
+  }
+  .eum-header::after {
+    content: '';
+    display: block;
+    position: absolute;
+    top: 0.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(125,211,252,0.2);
+  }
+  .eum-header::before { display: none; }
+  .eum-body {
+    padding: 0.875rem 1.125rem !important;
+    gap: 1rem !important;
+  }
+  /* Título não trunca muito cedo */
+  .eum-title {
+    font-size: 1.05rem !important;
+    max-width: calc(100vw - 160px) !important;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* Grid de campos: coluna única */
+  .eum-grid        { grid-template-columns: 1fr !important; gap: 0.75rem !important; }
+  .eum-field--full { grid-column: 1 !important; }
+  /* Inputs e selects maiores para toque */
+  .eum-input,
+  .eum-select { height: 3rem !important; font-size: 1rem !important; border-radius: 0.75rem !important; }
+  /* Botões de ação — empilha, toque generoso */
+  .eum-actions {
+    flex-direction: column-reverse !important;
+    gap: 0.5rem !important;
+    padding-top: 0.875rem !important;
+  }
+  .eum-actions .eum-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    height: 3rem !important;
+    font-size: 0.95rem !important;
+    border-radius: 0.875rem !important;
+  }
+  /* Bloco de acesso */
+  .eum-access-block {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0.875rem !important;
+    padding: 1rem 1.125rem !important;
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .eum-access-block .eum-btn {
+    width: 100% !important;
+    justify-content: center !important;
+    height: 3rem !important;
+    font-size: 0.875rem !important;
+    border-radius: 0.875rem !important;
+  }
+  /* Status pill e close compactos */
+  .eum-status-pill { font-size: 0.65rem; padding: 0.225rem 0.6rem; }
+  .eum-close       { width: 1.75rem; height: 1.75rem; }
+}
+
+/* ── Telefone pequeno (≤ 480px) — iPhone mini, Moto G ────────────────────── */
+@media (max-width: 480px) {
+  .adm-stat-card  { padding: 0.625rem 0.75rem; }
+  .adm-stat-value { font-size: 0.9rem; }
+  .adm-stat-label { font-size: 0.62rem; }
+  .adm-stat-icon  { width: 28px; height: 28px; }
+  .adm-page-sub   { font-size: 0.75rem; }
+  .eum-dialog     { max-height: calc(96dvh - env(safe-area-inset-top, 0px)) !important; }
+  .eum-wrap       { max-height: calc(96dvh - env(safe-area-inset-top, 0px)); }
+}
+
+/* ── iPhone SE / telas 320–380px ─────────────────────────────────────────── */
+@media (max-width: 380px) {
+  .adm-stats-grid { grid-template-columns: 1fr; }
+  .adm-page       { padding: 0.75rem 0.625rem !important; }
+  .eum-body       { padding: 0.75rem 0.875rem !important; }
+  .eum-title      { font-size: 0.95rem !important; max-width: calc(100vw - 130px) !important; }
+  .eum-status-pill { display: none; } /* sem espaço no SE — info redundante com o dot */
+  .eum-close      { width: 1.625rem; height: 1.625rem; }
+  .eum-input,
+  .eum-select     { height: 2.875rem !important; font-size: 0.95rem !important; }
+  .adm-table tr   { padding: 0.75rem 0.75rem; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TABELA DE USUÁRIOS — LAYOUT RESPONSIVO
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Breakpoints:
+     ≥1280px  → tabela completa (todas as colunas visíveis)
+     1025-1279px → oculta Código, Cashback, Adesão Paga (.adm-col--hide-lg)
+     641-1024px → oculta as mesmas + Status Mens (.adm-col--hide-md)
+     ≤640px   → card layout por linha; Labels via ::before; sem scroll lateral
+     ≤380px   → grid de 1 coluna dentro de cada card (iPhone SE, Galaxy A03)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Tabela compacta em desktop médio (1025-1279px) ─────────────────────── */
+@media (min-width: 1025px) and (max-width: 1279px) {
+  .adm-col--hide-lg { display: none !important; }
+
+  .adm-table { font-size: 0.72rem; }
+  .adm-table th,
+  .adm-table td { padding: 0.6rem 0.6rem; }
+}
+
+/* ── Utilitário de coluna ocultável tablet ───────────────────────────────── */
+/* Só afeta tablet (641-1024px); no mobile o card já mostra tudo na vertical */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .adm-col--hide-md { display: none !important; }
+  .adm-col--hide-lg { display: none !important; }
+
+  /* Tabela ligeiramente menor para caber mais colunas */
+  .adm-table { font-size: 0.72rem; }
+  .adm-table th,
+  .adm-table td { padding: 0.55rem 0.55rem; }
+}
+
+/* ── Toolbar responsivo ───────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .adm-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.625rem;
+  }
+  .adm-toolbar form {
+    flex-wrap: wrap !important;
+    gap: 0.5rem !important;
+  }
+  .adm-toolbar form > button,
+  .adm-toolbar form > a {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ── Card layout mobile (≤640px) ─────────────────────────────────────────── */
+@media (max-width: 640px) {
+  /* Remove scroll horizontal — não é mais necessário em card mode */
+  .adm-table-wrap {
+    overflow-x: visible;
+  }
+  .adm-table {
+    min-width: 0; /* reset — card mode não precisa de largura mínima */
+  }
+
+  /* Oculta cabeçalho da tabela clássica */
+  .adm-table thead {
+    display: none;
+  }
+
+  /* Cada linha vira um card */
+  .adm-table tbody tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 1rem;
+    row-gap: 0.75rem;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    margin-bottom: 0.625rem;
+    background: linear-gradient(160deg,
+      rgba(10, 25, 38, 0.72),
+      rgba(4, 14, 23, 0.56));
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: border-color 180ms ease;
+  }
+  .adm-table tbody tr:hover {
+    border-color: var(--border-md);
+    background: none; /* remove o highlight genérico de tr:hover */
+  }
+  /* Sem pseudo-linhas no card mode */
+  .adm-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  /* Cada célula: coluna com label + valor */
+  .adm-table td {
+    padding: 0;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    font-size: 0.84rem;
+  }
+
+  /* Label gerado via data-label */
+  .adm-table td[data-label]::before {
+    content: attr(data-label);
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-soft);
+    opacity: 0.75;
+    display: block;
+  }
+
+  /* ─ Coluna "Membro": ocupa a linha inteira no topo do card ─ */
+  .adm-table td[data-label="Membro"] {
+    grid-column: 1 / -1;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid rgba(103, 196, 243, 0.09);
+    gap: 0.3rem;
+  }
+  .adm-table td[data-label="Membro"]::before {
+    display: none; /* "Membro" é autoexplicativo */
+  }
+
+  /* ─ Botão de edição: ocupa linha inteira, alinhado à direita ─ */
+  .adm-table td:last-child {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: center;
+    padding-top: 0.5rem;
+    border-top: 1px solid rgba(103, 196, 243, 0.09);
+    margin-top: 0.125rem;
+  }
+  .adm-table td:last-child::before {
+    display: none !important;
+  }
+
+  /* adm-table-meta fica embaixo dos cards */
+  .adm-table-meta {
+    margin-top: 0.25rem;
+  }
+}
+
+/* ── Telas muito pequenas — iPhone SE, 320-380px ─────────────────────────── */
+@media (max-width: 380px) {
+  .adm-table tbody tr {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+}
+
+/* ── Modal Cashback ──────────────────────────────────────────── */
+
+.adm-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(2, 8, 16, 0.82);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: adm-fade-in 0.18s ease;
+}
+
+.adm-modal-card {
+  background: var(--surface, #0b1a2b);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.75rem;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  animation: adm-scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.adm-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 1.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.adm-modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.375rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.adm-modal-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* Small button variant */
+.adm-btn--sm {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.adm-btn--sm:hover {
+  filter: brightness(1.2);
+}
+
+/* Ghost button */
+.adm-btn--ghost {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-soft);
+  padding: 0.4rem 1rem;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.adm-btn--ghost:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Spin animation for loaders */
+.adm-spin {
+  animation: adm-spin-anim 0.8s linear infinite;
+}
+
+@keyframes adm-spin-anim {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes adm-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes adm-scale-in {
+  from { transform: scale(0.95); opacity: 0; }
+  to   { transform: scale(1); opacity: 1; }
+}
+
+/* ── Mini Action Button (Comissões) ─────────────────────────────────────────── */
+
+.adm-btn-mini {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 10px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  white-space: nowrap;
+}
+
+.adm-btn-mini:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-1px);
+}
+
+.adm-btn-mini:active {
+  transform: translateY(0);
+}
+
+.adm-btn-mini:disabled {
+  pointer-events: none;
+}
+

@@ -1,0 +1,40 @@
+node_modules
+.next
+out
+coverage
+dist
+.DS_Store
+*.log
+.env
+data/*.db
+
+# Environment & Secrets (AIOX)
+# .env.local — incluído intencionalmente (repo privado)
+.env.*.local
+*.key
+*.pem
+
+# Dependencies (AIOX)
+node_modules/
+
+# Build & Logs (AIOX)
+dist/
+build/
+logs/
+__pycache__/
+*.py[cod]
+*.tsbuildinfo
+playwright-report/
+test-results/
+
+# IDE & OS (AIOX)
+Thumbs.db
+.idea/
+*.swp
+
+# AIOX Local (AIOX)
+.aiox-core/local/
+.claude/settings.local.json
+.aiox/install-log.txt
+.vercel
+.env*.local

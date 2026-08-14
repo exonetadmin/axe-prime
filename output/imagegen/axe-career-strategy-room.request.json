@@ -1,0 +1,9 @@
+{
+  "endpoint": "/v1/images/generations",
+  "model": "gpt-image-1.5",
+  "n": 1,
+  "output_format": "webp",
+  "prompt": "Use case: photorealistic-natural\nAsset type: landing page section image\nPrimary request: ultra-realistic cinematic private strategy room for a premium patrimonial brand\nScene/background: high-rise glass meeting room overlooking a night skyline with ocean reflections far in the distance\nSubject: sculptural conference table, refined leather chairs, subtle awards and architectural objects, no people\nStyle/medium: cinematic interior photography\nComposition/framing: medium wide frame, low eye-level perspective, elegant negative space, depth through foreground reflections\nLighting/mood: low-key luxury lighting, celeste edge highlights, warm practical lamps, controlled contrast\nColor palette: deep ocean blue, graphite, smoked glass, brushed steel, restrained amber\nMaterials/textures: smoked glass, polished stone, leather, anodized metal, reflective surfaces\nQuality: high\nConstraints: no visible people, no text, no logos, no watermark\nAvoid: startup office vibe, cluttered desks, oversharpening, exaggerated bloom, cheap futuristic screens",
+  "quality": "high",
+  "size": "1536x1024"
+}

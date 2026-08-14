@@ -1,0 +1,9 @@
+{
+  "endpoint": "/v1/images/generations",
+  "model": "gpt-image-1.5",
+  "n": 1,
+  "output_format": "webp",
+  "prompt": "Use case: product-mockup\nAsset type: landing page section image\nPrimary request: ultra-realistic cinematic premium object representing structured capital and patrimonial depth\nScene/background: dark ocean-blue studio environment with reflective black surface and subtle mist\nSubject: one sculptural translucent monolith inspired by precision finance, floating slightly above a reflective plane\nStyle/medium: luxury product cinematography still frame\nComposition/framing: centered hero object, close medium shot, calm symmetry, elegant negative space\nLighting/mood: soft key light, cyan rim light, restrained caustic reflections, premium calm\nColor palette: ocean navy, celeste blue, frosted silver, graphite, white highlights\nMaterials/textures: glass, crystal, brushed aluminum, polished lacquer, soft haze\nQuality: high\nConstraints: no text, no logos, no watermark, no human figures, no literal currency symbols\nAvoid: crypto clich\u00e9, fake holograms, cheap neon, clutter, toy-like proportions",
+  "quality": "high",
+  "size": "1536x1024"
+}

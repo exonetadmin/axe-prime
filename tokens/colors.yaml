@@ -1,0 +1,86 @@
+# AXE PRIME Design Tokens - Colors
+# Format: W3C Design Tokens Community Group (DTCG)
+# Source: Extracted from app/globals.css
+
+axe-prime:
+  color:
+    # Background Colors
+    background:
+      base:
+        value: '#030b13'
+        description: 'Main page background'
+      strong:
+        value: '#071521'
+        description: 'Stronger background for cards/sections'
+      gradient:
+        start:
+          value: '#07131f'
+        mid:
+          value: '#030b13'
+        end:
+          value: '#06111b'
+    
+    # Surface Colors (with transparency)
+    surface:
+      DEFAULT:
+        value: 'rgba(7, 20, 31, 0.62)'
+        description: 'Glassmorphism surface'
+      soft:
+        value: 'rgba(8, 22, 34, 0.48)'
+        description: 'Softer surface for subtle backgrounds'
+      border:
+        DEFAULT:
+          value: 'rgba(103, 196, 243, 0.14)'
+        strong:
+          value: 'rgba(125, 211, 252, 0.28)'
+    
+    # Text Colors
+    text:
+      primary:
+        value: '#f3f9fd'
+        description: 'Main text color'
+      muted:
+        value: 'rgba(216, 226, 236, 0.88)'
+        description: 'Secondary text'
+      soft:
+        value: 'rgba(163, 178, 195, 0.82)'
+        description: 'Tertiary/disabled text'
+    
+    # Accent Colors (Blue/Sky)
+    accent:
+      DEFAULT:
+        value: '#38bdf8'
+      strong:
+        value: '#0ea5e9'
+      sky:
+        value: '#7dd3fc'
+      glow:
+        value: 'rgba(56, 189, 248, 0.32)'
+    
+    # Semantic Colors
+    semantic:
+      success:
+        DEFAULT:
+          value: '#22c55e'
+        light:
+          value: '#4ade80'
+      error:
+        DEFAULT:
+          value: '#ef4444'
+        light:
+          value: '#f87171'
+      warning:
+        DEFAULT:
+          value: '#f59e0b'
+      info:
+        DEFAULT:
+          value: '#3b82f6'
+    
+    # Cashback/Investment Green
+    investment:
+      DEFAULT:
+        value: '#22c55e'
+      light:
+        value: '#31c85c'
+      dark:
+        value: '#16a34a'
