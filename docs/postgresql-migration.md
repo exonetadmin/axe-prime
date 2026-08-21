@@ -158,12 +158,13 @@ npm run db:migrate
 ```
 
 O runner serializa execuções com advisory lock, aplica cada migration em uma
-transação e registra seu checksum em `schema_migrations`. Uma migration pode
-ser um arquivo SQL ou uma pasta com fragments SQL ordenados pelo caminho. A
-pasta `database/migrations/001_initial_schema/` organiza o schema por
-tabela/domínio, mas é executada como a única migration `001_initial_schema.sql`;
-seus fragments não são migrations independentes. Migration aplicada nunca deve
-ser editada; crie uma nova versão.
+transação e registra seu checksum em `schema_migrations`. O schema é organizado
+diretamente em `database/`: `data/` contém tabelas, constraints, índices e
+seeds; `function/` contém funções SQL; e `view/` contém views. Os arquivos
+`NN_nome.sql` são executados na ordem numérica, primeiro em `data/`, depois em
+`function/` e por fim em `view/`, formando a migration interna
+`001_initial_schema.sql`. Depois de aplicada, não altere o schema sem planejar
+uma migration incremental compatível.
 
 A migration consolidada remove as tabelas descontinuadas
 `knowledge_entries` e `copiloto_persona`. Preserve o backup se houver algum

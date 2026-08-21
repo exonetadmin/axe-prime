@@ -11,9 +11,14 @@ const { Client } = pg;
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, '..');
-const migrationsDirectory = path.join(projectRoot, 'database', 'migrations');
-const migrationFilePattern = /^(\d{3,})_([a-z0-9][a-z0-9_-]*)\.sql$/;
-const migrationDirectoryPattern = /^(\d{3,})_([a-z0-9][a-z0-9_-]*)$/;
+const databaseDirectory = path.join(projectRoot, 'database');
+const schemaDirectories = ['data', 'function', 'view'];
+const schemaFilePattern = /^(\d{2,})_([a-z0-9][a-z0-9_-]*)\.sql$/;
+const initialSchemaMigration = {
+  version: '001',
+  numericVersion: 1n,
+  filename: '001_initial_schema.sql',
+};
 
 // Identificador estável e exclusivo desta aplicação. O lock é de sessão para
 // serializar inclusive a criação da tabela de controle de migrations.
@@ -133,97 +138,77 @@ function buildTlsConfiguration() {
   };
 }
 
-async function listSqlFragments(directory, relativeDirectory = '') {
-  const entries = await readdir(directory, { withFileTypes: true });
-  const fragments = [];
+async function loadMigrations() {
+  const buffers = [];
 
-  for (const entry of entries) {
-    const relativePath = path.join(relativeDirectory, entry.name);
-    const absolutePath = path.join(directory, entry.name);
+  for (const [directoryPosition, directoryName] of schemaDirectories.entries()) {
+    const directory = path.join(databaseDirectory, directoryName);
+    let entries;
+    try {
+      entries = await readdir(directory, { withFileTypes: true });
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') {
+        throw new Error(`A pasta obrigatória database/${directoryName}/ não existe.`);
+      }
+      throw error;
+    }
 
-    if (entry.isDirectory()) {
-      fragments.push(...(await listSqlFragments(absolutePath, relativePath)));
-    } else if (entry.isFile() && entry.name.endsWith('.sql')) {
-      fragments.push(relativePath);
+    const fragments = entries
+      .filter(entry => entry.name !== '.gitkeep')
+      .map(entry => {
+        if (!entry.isFile()) {
+          throw new Error(
+            `database/${directoryName}/ aceita somente arquivos SQL: remova ou mova ${entry.name}.`
+          );
+        }
+
+        const match = schemaFilePattern.exec(entry.name);
+        if (!match) {
+          throw new Error(
+            `Nome de arquivo SQL inválido: database/${directoryName}/${entry.name}. ` +
+              'Use NN_nome_em_snake_case.sql.'
+          );
+        }
+
+        const position = BigInt(match[1]);
+        const canonicalPosition = position.toString().padStart(2, '0');
+        if (match[1] !== canonicalPosition) {
+          throw new Error(
+            `Posição de arquivo inválida em ${entry.name}. ` +
+              'Use ao menos dois dígitos, sem zeros excedentes.'
+          );
+        }
+
+        return { position, filename: entry.name };
+      })
+      .sort((left, right) => {
+        if (left.position < right.position) return -1;
+        if (left.position > right.position) return 1;
+        return left.filename.localeCompare(right.filename, 'en');
+      });
+
+    for (const fragment of fragments) {
+      buffers.push(
+        await readFile(
+          path.join(databaseDirectory, schemaDirectories[directoryPosition], fragment.filename)
+        )
+      );
     }
   }
 
-  return fragments.sort((left, right) => left.localeCompare(right, 'en'));
-}
+  const sqlBuffer = Buffer.concat(buffers);
+  const sql = sqlBuffer.toString('utf8');
+  if (!sql.trim()) {
+    throw new Error('O schema em database/data, database/function e database/view está vazio.');
+  }
 
-async function loadMigrations() {
-  const entries = await readdir(migrationsDirectory, { withFileTypes: true });
-
-  const seenVersions = new Set();
-  const migrations = [];
-
-  for (const entry of entries) {
-    if (!entry.isFile() && !entry.isDirectory()) continue;
-
-    const match = (entry.isFile() ? migrationFilePattern : migrationDirectoryPattern).exec(
-      entry.name
-    );
-    const sourceName = entry.name;
-    if (!match) {
-      throw new Error(
-        `Nome de migration inválido: ${sourceName}. ` +
-          'Use NNN_nome_em_snake_case.sql ou a pasta NNN_nome_em_snake_case/.'
-      );
-    }
-
-    const version = match[1];
-    const numericVersion = BigInt(version);
-    const canonicalVersion = numericVersion.toString().padStart(3, '0');
-    if (numericVersion === 0n || version !== canonicalVersion) {
-      throw new Error(
-        `Versão de migration não canônica: ${version}. ` +
-          'Use no mínimo três dígitos, sem zeros excedentes.'
-      );
-    }
-    const versionKey = numericVersion.toString();
-    if (seenVersions.has(versionKey)) {
-      throw new Error(`Versão de migration duplicada: ${version}`);
-    }
-    seenVersions.add(versionKey);
-
-    let sqlBuffer;
-    if (entry.isFile()) {
-      sqlBuffer = await readFile(path.join(migrationsDirectory, sourceName));
-    } else {
-      const fragmentDirectory = path.join(migrationsDirectory, sourceName);
-      const fragmentPaths = await listSqlFragments(fragmentDirectory);
-
-      if (fragmentPaths.length === 0) {
-        throw new Error(`A migration em pasta ${sourceName}/ não contém fragments .sql.`);
-      }
-
-      const buffers = await Promise.all(
-        fragmentPaths.map(fragmentPath => readFile(path.join(fragmentDirectory, fragmentPath)))
-      );
-      sqlBuffer = Buffer.concat(buffers);
-    }
-    const sql = sqlBuffer.toString('utf8');
-
-    if (!sql.trim()) {
-      throw new Error(`Migration vazia: ${filename}`);
-    }
-
-    migrations.push({
-      version,
-      numericVersion,
-      // A pasta é somente organização de fonte: mantém o mesmo identificador
-      // persistido no banco para que um 001 já aplicado continue verificável.
-      filename: `${version}_${match[2]}.sql`,
+  return [
+    {
+      ...initialSchemaMigration,
       sql,
       checksum: createHash('sha256').update(sqlBuffer).digest('hex'),
-    });
-  }
-
-  return migrations.sort((left, right) => {
-    if (left.numericVersion < right.numericVersion) return -1;
-    if (left.numericVersion > right.numericVersion) return 1;
-    return left.filename.localeCompare(right.filename, 'en');
-  });
+    },
+  ];
 }
 
 async function ensureMigrationTable(client) {
@@ -585,4 +570,4 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   });
 }
 
-export { listSqlFragments, loadMigrations };
+export { loadMigrations };
