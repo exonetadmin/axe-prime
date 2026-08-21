@@ -13,6 +13,7 @@ const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, '..');
 const migrationsDirectory = path.join(projectRoot, 'database', 'migrations');
 const migrationFilePattern = /^(\d{3,})_([a-z0-9][a-z0-9_-]*)\.sql$/;
+const migrationDirectoryPattern = /^(\d{3,})_([a-z0-9][a-z0-9_-]*)$/;
 
 // Identificador estável e exclusivo desta aplicação. O lock é de sessão para
 // serializar inclusive a criação da tabela de controle de migrations.
@@ -132,19 +133,42 @@ function buildTlsConfiguration() {
   };
 }
 
+async function listSqlFragments(directory, relativeDirectory = '') {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const fragments = [];
+
+  for (const entry of entries) {
+    const relativePath = path.join(relativeDirectory, entry.name);
+    const absolutePath = path.join(directory, entry.name);
+
+    if (entry.isDirectory()) {
+      fragments.push(...(await listSqlFragments(absolutePath, relativePath)));
+    } else if (entry.isFile() && entry.name.endsWith('.sql')) {
+      fragments.push(relativePath);
+    }
+  }
+
+  return fragments.sort((left, right) => left.localeCompare(right, 'en'));
+}
+
 async function loadMigrations() {
   const entries = await readdir(migrationsDirectory, { withFileTypes: true });
-  const filenames = entries
-    .filter(entry => entry.isFile() && entry.name.endsWith('.sql'))
-    .map(entry => entry.name);
 
   const seenVersions = new Set();
   const migrations = [];
 
-  for (const filename of filenames) {
-    const match = migrationFilePattern.exec(filename);
+  for (const entry of entries) {
+    if (!entry.isFile() && !entry.isDirectory()) continue;
+
+    const match = (entry.isFile() ? migrationFilePattern : migrationDirectoryPattern).exec(
+      entry.name
+    );
+    const sourceName = entry.name;
     if (!match) {
-      throw new Error(`Nome de migration inválido: ${filename}. Use NNN_nome_em_snake_case.sql.`);
+      throw new Error(
+        `Nome de migration inválido: ${sourceName}. ` +
+          'Use NNN_nome_em_snake_case.sql ou a pasta NNN_nome_em_snake_case/.'
+      );
     }
 
     const version = match[1];
@@ -162,8 +186,22 @@ async function loadMigrations() {
     }
     seenVersions.add(versionKey);
 
-    const absolutePath = path.join(migrationsDirectory, filename);
-    const sqlBuffer = await readFile(absolutePath);
+    let sqlBuffer;
+    if (entry.isFile()) {
+      sqlBuffer = await readFile(path.join(migrationsDirectory, sourceName));
+    } else {
+      const fragmentDirectory = path.join(migrationsDirectory, sourceName);
+      const fragmentPaths = await listSqlFragments(fragmentDirectory);
+
+      if (fragmentPaths.length === 0) {
+        throw new Error(`A migration em pasta ${sourceName}/ não contém fragments .sql.`);
+      }
+
+      const buffers = await Promise.all(
+        fragmentPaths.map(fragmentPath => readFile(path.join(fragmentDirectory, fragmentPath)))
+      );
+      sqlBuffer = Buffer.concat(buffers);
+    }
     const sql = sqlBuffer.toString('utf8');
 
     if (!sql.trim()) {
@@ -173,7 +211,9 @@ async function loadMigrations() {
     migrations.push({
       version,
       numericVersion,
-      filename,
+      // A pasta é somente organização de fonte: mantém o mesmo identificador
+      // persistido no banco para que um 001 já aplicado continue verificável.
+      filename: `${version}_${match[2]}.sql`,
       sql,
       checksum: createHash('sha256').update(sqlBuffer).digest('hex'),
     });
@@ -537,8 +577,12 @@ async function main() {
   }
 }
 
-main().catch(error => {
-  console.error('Falha ao executar migrations PostgreSQL.');
-  console.error(error instanceof Error ? error.message : error);
-  process.exitCode = 1;
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch(error => {
+    console.error('Falha ao executar migrations PostgreSQL.');
+    console.error(error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  });
+}
+
+export { listSqlFragments, loadMigrations };
