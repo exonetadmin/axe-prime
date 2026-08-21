@@ -1,31 +1,39 @@
-/**
- * User Repository — Supabase Postgres
- * Substitui better-sqlite3 da versão local.
- */
+import '@/src/server/server-only';
 
-import { supabase } from '@/lib/supabase';
-
-
-// ── Types ──────────────────────────────────────────────────────────────────────
+import type { PoolClient } from 'pg';
+import { execute, queryOne, withTransaction } from '@/src/server/db/postgres';
+import { trustedAvatarUrl } from '@/src/features/profile/avatar-url';
 
 export type UserRecord = {
   id: string;
   name: string;
   email: string;
   password_hash: string;
+  phone: string | null;
   plan_interest: string | null;
   sponsor_id: string | null;
   referral_code: string | null;
   avatar_url: string | null;
   cpf: string | null;
-  reset_token: string | null;
-  reset_token_expires: string | null;
   adhesion_at: string | null;
   plan_monthly_cents: number | null;
   adhesion_value_cents: number | null;
   kyc_submitted: boolean;
   is_active: boolean;
+  token_version: number;
+  password_changed_at: string | null;
+  last_login_at: string | null;
   created_at: string;
+};
+
+type UserRow = Omit<
+  UserRecord,
+  'adhesion_at' | 'password_changed_at' | 'last_login_at' | 'created_at'
+> & {
+  adhesion_at: Date | string | null;
+  password_changed_at: Date | string | null;
+  last_login_at: Date | string | null;
+  created_at: Date | string;
 };
 
 export type User = {
@@ -54,126 +62,184 @@ export type CreateUserData = {
   createdAt: string;
 };
 
-function mapToDomain(record: UserRecord): User {
+const USER_COLUMNS = `
+  id,
+  name,
+  email,
+  password_hash,
+  phone,
+  plan_interest,
+  sponsor_id,
+  referral_code,
+  avatar_url,
+  cpf,
+  adhesion_at,
+  plan_monthly_cents,
+  adhesion_value_cents,
+  kyc_submitted,
+  is_active,
+  token_version,
+  password_changed_at,
+  last_login_at,
+  created_at
+`;
+
+function timestamp(value: Date | string | null): string | null {
+  if (value === null) return null;
+  return value instanceof Date ? value.toISOString() : value;
+}
+
+function normalizeRecord(row: UserRow): UserRecord {
+  return {
+    ...row,
+    avatar_url: trustedAvatarUrl(row.avatar_url),
+    adhesion_at: timestamp(row.adhesion_at),
+    password_changed_at: timestamp(row.password_changed_at),
+    last_login_at: timestamp(row.last_login_at),
+    created_at: timestamp(row.created_at) as string,
+  };
+}
+
+export function mapUserRecordToDomain(record: UserRecord): User {
   return {
     id: record.id,
     name: record.name,
     email: record.email,
-    phone: (record as Record<string, unknown>).phone as string | null ?? null,
+    phone: record.phone,
     planInterest: record.plan_interest as 'start' | 'prime' | 'elite' | null,
-    sponsorId: record.sponsor_id ?? null,
+    sponsorId: record.sponsor_id,
     referralCode: record.referral_code ?? '',
     createdAt: record.created_at,
-    avatarUrl: record.avatar_url ?? null,
-    cpf: record.cpf ?? null,
-    adhesionValueCents: record.adhesion_value_cents ?? null,
+    avatarUrl: record.avatar_url,
+    cpf: record.cpf,
+    adhesionValueCents: record.adhesion_value_cents,
   };
 }
 
-// ── Repository ─────────────────────────────────────────────────────────────────
+async function queryUser(sql: string, values: readonly unknown[]): Promise<UserRecord | null> {
+  const row = await queryOne<UserRow>(sql, values);
+  return row ? normalizeRecord(row) : null;
+}
+
+async function revokeUserSessions(
+  client: PoolClient,
+  userId: string,
+  reason: string
+): Promise<void> {
+  await client.query(
+    `UPDATE public.auth_sessions
+       SET revoked_at = COALESCE(revoked_at, NOW()),
+           revoke_reason = COALESCE(revoke_reason, $2)
+     WHERE user_id = $1
+       AND revoked_at IS NULL`,
+    [userId, reason]
+  );
+  await client.query(
+    `UPDATE public.auth_refresh_tokens rt
+       SET revoked_at = COALESCE(rt.revoked_at, NOW())
+      FROM public.auth_sessions s
+     WHERE rt.session_id = s.id
+       AND s.user_id = $1
+       AND rt.revoked_at IS NULL`,
+    [userId]
+  );
+}
 
 export class UserRepository {
   async findByEmail(email: string): Promise<UserRecord | null> {
-    const { data } = await supabase
-      .from('users')
-      .select('*')
-      .ilike('email', email)
-      .limit(1)
-      .maybeSingle();
-    return data ?? null;
+    return queryUser(
+      `SELECT ${USER_COLUMNS}
+         FROM public.users
+        WHERE lower(btrim(email)) = lower(btrim($1))
+        LIMIT 1`,
+      [email]
+    );
   }
 
   async findById(id: string): Promise<UserRecord | null> {
-    const { data } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
-    return data ?? null;
+    return queryUser(
+      `SELECT ${USER_COLUMNS}
+         FROM public.users
+        WHERE id = $1`,
+      [id]
+    );
   }
 
   async create(data: CreateUserData): Promise<User> {
-    const { data: row, error } = await supabase
-      .from('users')
-      .insert({
-        id: data.id,
-        name: data.name,
-        email: data.email,
-        password_hash: data.passwordHash,
-        phone: data.phone ?? null,
-        plan_interest: data.planInterest ?? null,
-        sponsor_id: data.sponsorId ?? null,
-        referral_code: data.referralCode,
-        created_at: data.createdAt,
-      })
-      .select()
-      .single();
-
-    if (error) throw new Error(`Failed to create user: ${error.message}`);
-    return mapToDomain(row as UserRecord);
+    const row = await queryOne<UserRow>(
+      `INSERT INTO public.users (
+         id, name, email, password_hash, phone, plan_interest,
+         sponsor_id, referral_code, created_at
+       ) VALUES ($1, $2, lower(btrim($3)), $4, $5, $6, $7, $8, $9)
+       RETURNING ${USER_COLUMNS}`,
+      [
+        data.id,
+        data.name.trim(),
+        data.email,
+        data.passwordHash,
+        data.phone ?? null,
+        data.planInterest ?? null,
+        data.sponsorId,
+        data.referralCode,
+        data.createdAt,
+      ]
+    );
+    if (!row) throw new Error('Failed to create user');
+    return mapUserRecordToDomain(normalizeRecord(row));
   }
 
   async findByReferralCode(referralCode: string): Promise<UserRecord | null> {
-    if (!referralCode?.trim()) return null;
-    const { data } = await supabase
-      .from('users')
-      .select('*')
-      .eq('referral_code', referralCode.trim())
-      .maybeSingle();
-    return data ?? null;
+    const code = referralCode.trim().toUpperCase();
+    if (!code) return null;
+    return queryUser(
+      `SELECT ${USER_COLUMNS}
+         FROM public.users
+        WHERE referral_code = $1`,
+      [code]
+    );
   }
 
-  async updatePassword(userId: string, newPasswordHash: string): Promise<boolean> {
-    const { error, count } = await supabase
-      .from('users')
-      .update({ password_hash: newPasswordHash, reset_token: null, reset_token_expires: null })
-      .eq('id', userId);
-    return !error && (count ?? 0) > 0;
+  /** Rehash after a valid login without invalidating that login. */
+  async updatePasswordHash(
+    userId: string,
+    expectedPasswordHash: string,
+    expectedTokenVersion: number,
+    newPasswordHash: string
+  ): Promise<boolean> {
+    return (
+      (await execute(
+        `UPDATE public.users
+            SET password_hash = $2
+          WHERE id = $1
+            AND password_hash = $3
+            AND token_version = $4`,
+        [userId, newPasswordHash, expectedPasswordHash, expectedTokenVersion]
+      )) > 0
+    );
   }
 
-  async setResetToken(email: string, token: string, expiresAt: Date): Promise<boolean> {
-    const { error, count } = await supabase
-      .from('users')
-      .update({ reset_token: token, reset_token_expires: expiresAt.toISOString() })
-      .ilike('email', email);
-    return !error && (count ?? 0) > 0;
-  }
-
-  async findByResetToken(token: string): Promise<UserRecord | null> {
-    const { data } = await supabase
-      .from('users')
-      .select('*')
-      .eq('reset_token', token)
-      .gt('reset_token_expires', new Date().toISOString())
-      .maybeSingle();
-    return data ?? null;
-  }
-
-  async clearResetToken(userId: string): Promise<void> {
-    await supabase
-      .from('users')
-      .update({ reset_token: null, reset_token_expires: null })
-      .eq('id', userId);
+  async markLogin(userId: string): Promise<void> {
+    await execute(`UPDATE public.users SET last_login_at = NOW() WHERE id = $1`, [userId]);
   }
 
   async updateReferralCode(userId: string, referralCode: string): Promise<boolean> {
-    const { error, count } = await supabase
-      .from('users')
-      .update({ referral_code: referralCode })
-      .eq('id', userId);
-    return !error && (count ?? 0) > 0;
+    return (
+      (await execute(`UPDATE public.users SET referral_code = $2 WHERE id = $1`, [
+        userId,
+        referralCode.trim().toUpperCase(),
+      ])) > 0
+    );
   }
 
   async count(): Promise<number> {
-    const { count } = await supabase
-      .from('users')
-      .select('*', { count: 'exact', head: true });
-    return count ?? 0;
+    const row = await queryOne<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM public.users'
+    );
+    return Number.parseInt(row?.count ?? '0', 10);
   }
 
   async emailExists(email: string): Promise<boolean> {
-    const user = await this.findByEmail(email);
-    return user !== null;
+    return (await this.findByEmail(email)) !== null;
   }
 
   async updateAdhesion(
@@ -181,36 +247,56 @@ export class UserRepository {
     adhesionAt: string,
     planMonthlyCents: number
   ): Promise<boolean> {
-    const { error, count } = await supabase
-      .from('users')
-      .update({ adhesion_at: adhesionAt, plan_monthly_cents: planMonthlyCents })
-      .eq('id', userId);
-    return !error && (count ?? 0) > 0;
+    return (
+      (await execute(
+        `UPDATE public.users
+            SET adhesion_at = $2,
+                adhesion_paid = TRUE,
+                plan_monthly_cents = $3
+          WHERE id = $1`,
+        [userId, adhesionAt, planMonthlyCents]
+      )) > 0
+    );
   }
 
   async getAdhesion(userId: string): Promise<{
     adhesionAt: string | null;
     planMonthlyCents: number | null;
   } | null> {
-    const { data } = await supabase
-      .from('users')
-      .select('adhesion_at, plan_monthly_cents')
-      .eq('id', userId)
-      .maybeSingle();
-    if (!data) return null;
+    const row = await queryOne<{
+      adhesion_at: Date | string | null;
+      plan_monthly_cents: number | null;
+    }>(
+      `SELECT adhesion_at, plan_monthly_cents
+         FROM public.users
+        WHERE id = $1`,
+      [userId]
+    );
+    if (!row) return null;
     return {
-      adhesionAt: data.adhesion_at,
-      planMonthlyCents: data.plan_monthly_cents,
+      adhesionAt: timestamp(row.adhesion_at),
+      planMonthlyCents: row.plan_monthly_cents,
     };
   }
 
-  /** Ativa ou desativa o acesso de um usuário. */
+  /** Disabling an account invalidates every token already issued to it. */
   async setActive(userId: string, active: boolean): Promise<boolean> {
-    const { error, count } = await supabase
-      .from('users')
-      .update({ is_active: active })
-      .eq('id', userId);
-    return !error && (count ?? 0) > 0;
+    return withTransaction(async client => {
+      const result = await client.query(
+        `UPDATE public.users
+            SET is_active = $2,
+                token_version = token_version + 1
+          WHERE id = $1
+            AND is_active IS DISTINCT FROM $2`,
+        [userId, active]
+      );
+      if ((result.rowCount ?? 0) === 0) {
+        const exists = await client.query('SELECT 1 FROM public.users WHERE id = $1', [userId]);
+        return (exists.rowCount ?? 0) > 0;
+      }
+      await revokeUserSessions(client, userId, active ? 'account_reactivated' : 'account_disabled');
+      return true;
+    });
   }
 }
 

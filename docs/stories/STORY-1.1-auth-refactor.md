@@ -1,4 +1,4 @@
-# Story 1.1: Refatoração de Autenticação para Pattern AIOX
+# Story 1.1: Refatoração da arquitetura de autenticação
 
 ## Status
 **Status:** ✅ Ready for Review  
@@ -27,10 +27,10 @@
 
 ---
 
-## Dev Agent Record
+## Implementation Record
 
 ### Tasks Checklist
-- [x] Criar estrutura de pastas AIOX (src/features/auth/)
+- [x] Criar estrutura modular em `src/features/auth/`
 - [x] Implementar Auth Contract
 - [x] Implementar User Repository
 - [x] Implementar Auth Service
@@ -80,7 +80,7 @@
 - `app/api/auth/logout/route.ts`
 - `app/api/auth/session/route.ts`
 - `app/api/auth/reset/route.ts`
-- `app/api/auth/reset/[token]/route.ts`
+- `app/api/auth/reset/confirm/route.ts`
 - `lib/auth.ts` (backward compatibility)
 
 ---
@@ -88,7 +88,7 @@
 ## Change Log
 | Date | Change | Author |
 |------|--------|--------|
-| 2026-03-13 | Criada estrutura AIOX | @dev |
+| 2026-03-13 | Criada estrutura modular de autenticação | Desenvolvimento |
 | 2026-03-13 | Implementado Contract Pattern | @dev |
 | 2026-03-13 | Implementado Repository Pattern | @dev |
 | 2026-03-13 | Implementado Service Pattern | @dev |

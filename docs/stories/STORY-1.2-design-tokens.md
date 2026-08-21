@@ -26,7 +26,7 @@
 
 ---
 
-## Dev Agent Record
+## Implementation Record
 
 ### Tasks Checklist
 - [x] Analisar app/globals.css

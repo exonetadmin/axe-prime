@@ -9,16 +9,24 @@ import type {
   updateAdminUserAction,
   deleteAdminUserAction,
 } from '@/app/admin/actions';
-import type { PlanRow, AdminUserRow, CommissionConfig, CashbackConfig } from '@/src/features/admin/config.repository';
+import type {
+  PlanRow,
+  AdminUserRow,
+  CommissionConfig,
+  CashbackConfig,
+} from '@/src/features/admin/config.repository';
 
 type ActionFn = (fd: FormData) => Promise<{ error?: string }>;
-type DeleteFn = (id: string) => Promise<{ error?: string }>;
 
 // ─── Reusable helpers ─────────────────────────────────────────────────────────
 
 function Err({ msg }: { msg: string | undefined }) {
   if (!msg) return null;
-  return <p className="adm-cfg-error" role="alert">{msg}</p>;
+  return (
+    <p className="adm-cfg-error" role="alert">
+      {msg}
+    </p>
+  );
 }
 
 function Ok({ done }: { done: boolean }) {
@@ -48,13 +56,7 @@ function useAction(action: ActionFn) {
 
 // ─── Plan edit row ─────────────────────────────────────────────────────────────
 
-export function PlanEditRow({
-  plan,
-  action,
-}: {
-  plan: PlanRow;
-  action: typeof updatePlanAction;
-}) {
+export function PlanEditRow({ plan, action }: { plan: PlanRow; action: typeof updatePlanAction }) {
   const [open, setOpen] = useState(false);
   const { pending, error, done, submit } = useAction(action);
 
@@ -96,7 +98,11 @@ export function PlanEditRow({
               placeholder="Mensalidade R$"
               required
             />
-            <button className="adm-btn adm-btn--primary adm-btn--sm" type="submit" disabled={pending}>
+            <button
+              className="adm-btn adm-btn--primary adm-btn--sm"
+              type="submit"
+              disabled={pending}
+            >
               {pending ? 'Salvando…' : 'Salvar'}
             </button>
           </form>
@@ -130,14 +136,13 @@ export function CommissionConfigForm({
         <tbody>
           {(
             [
-              { label: 'Direto (nível 0)', key: 'direct_pct', val: cfg.direct_pct },
-              { label: 'Rede nível 1',     key: 'level1_pct', val: cfg.level1_pct },
-              { label: 'Rede nível 2',     key: 'level2_pct', val: cfg.level2_pct },
-              { label: 'Rede nível 3',     key: 'level3_pct', val: cfg.level3_pct },
-              { label: 'Rede nível 4',     key: 'level4_pct', val: cfg.level4_pct },
-              { label: 'Rede nível 5',     key: 'level5_pct', val: cfg.level5_pct },
+              { label: 'Direto (N1)', key: 'direct_pct', val: cfg.direct_pct },
+              { label: 'Rede N2', key: 'level1_pct', val: cfg.level1_pct },
+              { label: 'Rede N3', key: 'level2_pct', val: cfg.level2_pct },
+              { label: 'Rede N4', key: 'level3_pct', val: cfg.level3_pct },
+              { label: 'Rede N5', key: 'level4_pct', val: cfg.level4_pct },
             ] as const
-          ).map((row) => (
+          ).map(row => (
             <tr key={row.key}>
               <td className="adm-table-muted">{row.label}</td>
               <td>
@@ -190,31 +195,75 @@ export function CashbackConfigForm({
           <tr>
             <td className="adm-table-muted">Cashback padrão (%)</td>
             <td>
-              <input className="adm-input adm-cfg-input-sm" name="standard_pct" type="number" step="1" min="0" max="100" defaultValue={cfg.standard_pct} required />
+              <input
+                className="adm-input adm-cfg-input-sm"
+                name="standard_pct"
+                type="number"
+                step="1"
+                min="0"
+                max="100"
+                defaultValue={cfg.standard_pct}
+                required
+              />
             </td>
           </tr>
           <tr>
             <td className="adm-table-muted">Cashback premium (%)</td>
             <td>
-              <input className="adm-input adm-cfg-input-sm" name="premium_pct" type="number" step="1" min="0" max="100" defaultValue={cfg.premium_pct} required />
+              <input
+                className="adm-input adm-cfg-input-sm"
+                name="premium_pct"
+                type="number"
+                step="1"
+                min="0"
+                max="100"
+                defaultValue={cfg.premium_pct}
+                required
+              />
             </td>
           </tr>
           <tr>
             <td className="adm-table-muted">Limite premium (R$)</td>
             <td>
-              <input className="adm-input adm-cfg-input-md" name="premium_threshold_brl" type="number" step="0.01" min="0" defaultValue={(cfg.premium_threshold_cents / 100).toFixed(2)} required />
+              <input
+                className="adm-input adm-cfg-input-md"
+                name="premium_threshold_brl"
+                type="number"
+                step="0.01"
+                min="0"
+                defaultValue={(cfg.premium_threshold_cents / 100).toFixed(2)}
+                required
+              />
             </td>
           </tr>
           <tr>
             <td className="adm-table-muted">Duração (meses)</td>
             <td>
-              <input className="adm-input adm-cfg-input-sm" name="duration_months" type="number" step="1" min="1" max="120" defaultValue={cfg.duration_months} required />
+              <input
+                className="adm-input adm-cfg-input-sm"
+                name="duration_months"
+                type="number"
+                step="1"
+                min="1"
+                max="12"
+                defaultValue={cfg.duration_months}
+                required
+              />
             </td>
           </tr>
           <tr>
             <td className="adm-table-muted">Crédito (dia do mês)</td>
             <td>
-              <input className="adm-input adm-cfg-input-sm" name="credit_day" type="number" step="1" min="1" max="31" defaultValue={cfg.credit_day} required />
+              <input
+                className="adm-input adm-cfg-input-sm"
+                name="credit_day"
+                type="number"
+                step="1"
+                min="1"
+                max="31"
+                defaultValue={cfg.credit_day}
+                required
+              />
             </td>
           </tr>
         </tbody>
@@ -262,7 +311,7 @@ export function AdminUsersPanel({
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => (
+            {users.map(u => (
               <AdminUserRow
                 key={u.id}
                 user={u}
@@ -311,7 +360,9 @@ function AdminUserRow({
         <td className="adm-table-name">{user.name}</td>
         <td className="adm-table-muted">{user.email}</td>
         <td>
-          <span className={`adm-badge adm-badge--${user.role === 'master' ? 'elite' : user.role === 'financeiro' ? 'prime' : 'start'}`}>
+          <span
+            className={`adm-badge adm-badge--${user.role === 'master' ? 'elite' : user.role === 'financeiro' ? 'prime' : 'start'}`}
+          >
             {user.role}
           </span>
         </td>
@@ -322,7 +373,11 @@ function AdminUserRow({
         </td>
         <td>
           <div className="adm-action-row">
-            <button className="adm-btn adm-btn--ghost adm-btn--sm" type="button" onClick={() => setOpen(!open)}>
+            <button
+              className="adm-btn adm-btn--ghost adm-btn--sm"
+              type="button"
+              onClick={() => setOpen(!open)}
+            >
               {open ? 'Cancelar' : 'Editar'}
             </button>
             {!isSelf && (
@@ -344,17 +399,50 @@ function AdminUserRow({
           <td colSpan={5} style={{ background: 'rgba(255,255,255,0.02)', padding: '0.75rem 1rem' }}>
             <form onSubmit={submit} className="adm-cfg-inline-form" style={{ flexWrap: 'wrap' }}>
               <input type="hidden" name="id" value={user.id} />
-              <input className="adm-input adm-cfg-input-md" name="name" defaultValue={user.name} placeholder="Nome" required />
-              <input className="adm-input adm-cfg-input-md" name="email" type="email" defaultValue={user.email} placeholder="E-mail" required />
-              <input className="adm-input adm-cfg-input-md" name="password" defaultValue={user.password} placeholder="Senha" required />
+              <input
+                className="adm-input adm-cfg-input-md"
+                name="name"
+                defaultValue={user.name}
+                placeholder="Nome"
+                required
+              />
+              <input
+                className="adm-input adm-cfg-input-md"
+                name="email"
+                type="email"
+                defaultValue={user.email}
+                placeholder="E-mail"
+                required
+              />
+              <input
+                className="adm-input adm-cfg-input-md"
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                minLength={15}
+                maxLength={128}
+                placeholder="Nova senha (opcional)"
+              />
               <select className="adm-input adm-cfg-input-md" name="role" defaultValue={user.role}>
-                {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                {ROLES.map(r => (
+                  <option key={r} value={r}>
+                    {r}
+                  </option>
+                ))}
               </select>
-              <select className="adm-input adm-cfg-input-sm" name="active" defaultValue={String(user.active)}>
+              <select
+                className="adm-input adm-cfg-input-sm"
+                name="active"
+                defaultValue={String(user.active)}
+              >
                 <option value="1">Ativo</option>
                 <option value="0">Inativo</option>
               </select>
-              <button className="adm-btn adm-btn--primary adm-btn--sm" type="submit" disabled={pending}>
+              <button
+                className="adm-btn adm-btn--primary adm-btn--sm"
+                type="submit"
+                disabled={pending}
+              >
                 {pending ? '…' : 'Salvar'}
               </button>
             </form>
@@ -373,11 +461,35 @@ function AddAdminForm({ action }: { action: typeof addAdminUserAction }) {
     <div className="adm-card">
       <h3 className="adm-card-title">Adicionar Administrador</h3>
       <form onSubmit={submit} className="adm-cfg-inline-form" style={{ flexWrap: 'wrap' }}>
-        <input className="adm-input adm-cfg-input-md" name="name" placeholder="Nome completo" required />
-        <input className="adm-input adm-cfg-input-md" name="email" type="email" placeholder="E-mail" required />
-        <input className="adm-input adm-cfg-input-md" name="password" placeholder="Senha inicial" required />
+        <input
+          className="adm-input adm-cfg-input-md"
+          name="name"
+          placeholder="Nome completo"
+          required
+        />
+        <input
+          className="adm-input adm-cfg-input-md"
+          name="email"
+          type="email"
+          placeholder="E-mail"
+          required
+        />
+        <input
+          className="adm-input adm-cfg-input-md"
+          name="password"
+          type="password"
+          autoComplete="new-password"
+          minLength={15}
+          maxLength={128}
+          placeholder="Senha inicial (15–128 caracteres)"
+          required
+        />
         <select className="adm-input adm-cfg-input-md" name="role">
-          {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+          {ROLES.map(r => (
+            <option key={r} value={r}>
+              {r}
+            </option>
+          ))}
         </select>
         <button className="adm-btn adm-btn--success adm-btn--sm" type="submit" disabled={pending}>
           {pending ? 'Adicionando…' : '+ Adicionar'}

@@ -12,8 +12,13 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#0ea5e9",
     icons: [
       {
-        src: "/brand/axe-prime-emblem.png",
-        sizes: "210x240",
+        src: "/icon-192x192.png",
+        sizes: "192x192",
+        type: "image/png",
+      },
+      {
+        src: "/icon-512x512.png",
+        sizes: "512x512",
         type: "image/png",
       },
     ],

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
+import { apiFetch } from '@/lib/api-client';
 
 /**
  * Auto-refresh do portal a cada `intervalMs` milissegundos.
@@ -17,10 +18,21 @@ export default function PortalAutoRefresh() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
+    async function refreshPortal() {
+      const response = await apiFetch('/api/auth/session', {
+        cache: 'no-store',
+      }).catch(() => null);
+      if (!response?.ok) {
+        router.replace('/auth');
+        return;
+      }
+      router.refresh();
+    }
+
     function startPolling() {
       if (timerRef.current) return;
       timerRef.current = setInterval(() => {
-        router.refresh();
+        void refreshPortal();
       }, POLL_INTERVAL_MS);
     }
 
@@ -36,7 +48,7 @@ export default function PortalAutoRefresh() {
         stopPolling();
       } else {
         // Refresh imediato ao voltar + reinicia timer
-        router.refresh();
+        void refreshPortal();
         startPolling();
       }
     }

@@ -217,6 +217,35 @@ function RejectModal({ id, onDone, onCancel }: { id: string; onDone: () => void;
 
 // ── KycDetailModal ───────────────────────────────────────────────────────────────────
 
+const kycFieldStyle: React.CSSProperties = {
+  display: 'flex', flexDirection: 'column', gap: '0.15rem',
+};
+const kycFieldLabelStyle: React.CSSProperties = {
+  fontSize: '0.6rem', color: 'rgba(163,178,195,0.7)',
+  textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600,
+};
+const kycFieldValueStyle: React.CSSProperties = {
+  fontSize: '0.82rem', color: '#f3f9fd', fontWeight: 500,
+};
+
+function KycField({ label, value, icon }: {
+  label: string;
+  value: string | null | undefined;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <div style={kycFieldStyle}>
+      <span style={kycFieldLabelStyle}>{label}</span>
+      <span style={{ ...kycFieldValueStyle, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+        {icon}
+        {value || (
+          <span style={{ ...kycFieldValueStyle, color: 'rgba(163,178,195,0.4)' }}>—</span>
+        )}
+      </span>
+    </div>
+  );
+}
+
 function KycDetailModal({ row, onClose }: { row: PlanRequestRow; onClose: () => void }) {
   const sectionStyle: React.CSSProperties = {
     marginBottom: '1.25rem',
@@ -232,29 +261,6 @@ function KycDetailModal({ row, onClose }: { row: PlanRequestRow; onClose: () => 
     display: 'grid', gridTemplateColumns: '1fr 1fr',
     gap: '0.5rem 1.25rem', marginBottom: '0.5rem',
   };
-  const fieldStyle: React.CSSProperties = {
-    display: 'flex', flexDirection: 'column', gap: '0.15rem',
-  };
-  const fieldLabelStyle: React.CSSProperties = {
-    fontSize: '0.6rem', color: 'rgba(163,178,195,0.7)',
-    textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600,
-  };
-  const fieldValueStyle: React.CSSProperties = {
-    fontSize: '0.82rem', color: '#f3f9fd', fontWeight: 500,
-  };
-  const emptyValue = <span style={{ ...fieldValueStyle, color: 'rgba(163,178,195,0.4)' }}>—</span>;
-
-  function Field({ label, value, icon }: { label: string; value: string | null | undefined; icon?: React.ReactNode }) {
-    return (
-      <div style={fieldStyle}>
-        <span style={fieldLabelStyle}>{label}</span>
-        <span style={{ ...fieldValueStyle, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-          {icon}{value || emptyValue}
-        </span>
-      </div>
-    );
-  }
-
   return (
     <div
       style={{
@@ -312,19 +318,19 @@ function KycDetailModal({ row, onClose }: { row: PlanRequestRow; onClose: () => 
               Identificação
             </div>
             <div style={fieldRowStyle}>
-              <Field label="Nome Completo" value={row.full_name} />
-              <Field label="CPF" value={row.cpf} icon={<CreditCard size={10} strokeWidth={2} />} />
+              <KycField label="Nome Completo" value={row.full_name} />
+              <KycField label="CPF" value={row.cpf} icon={<CreditCard size={10} strokeWidth={2} />} />
             </div>
             <div style={fieldRowStyle}>
-              <Field label="RG" value={row.rg} />
-              <Field label="Data de Emissão" value={row.rg_issue_date} icon={<Calendar size={10} strokeWidth={2} />} />
+              <KycField label="RG" value={row.rg} />
+              <KycField label="Data de Emissão" value={row.rg_issue_date} icon={<Calendar size={10} strokeWidth={2} />} />
             </div>
             <div style={fieldRowStyle}>
-              <Field label="Órgão Emissor" value={row.rg_issuer} />
-              <Field label="Data de Nascimento" value={row.birth_date} icon={<Calendar size={10} strokeWidth={2} />} />
+              <KycField label="Órgão Emissor" value={row.rg_issuer} />
+              <KycField label="Data de Nascimento" value={row.birth_date} icon={<Calendar size={10} strokeWidth={2} />} />
             </div>
             <div style={fieldRowStyle}>
-              <Field label="Estado Civil" value={
+              <KycField label="Estado Civil" value={
                 row.marital_status
                   ? { solteiro: 'Solteiro(a)', casado: 'Casado(a)', divorciado: 'Divorciado(a)', viuvo: 'Viúvo(a)', separado: 'Separado(a)', uniao_estavel: 'União Estável' }[row.marital_status] ?? row.marital_status
                   : null
@@ -340,8 +346,8 @@ function KycDetailModal({ row, onClose }: { row: PlanRequestRow; onClose: () => 
               Naturalidade
             </div>
             <div style={fieldRowStyle}>
-              <Field label="UF" value={row.birth_state} />
-              <Field label="Cidade" value={row.birth_city} />
+              <KycField label="UF" value={row.birth_state} />
+              <KycField label="Cidade" value={row.birth_city} />
             </div>
           </div>
 
@@ -352,8 +358,8 @@ function KycDetailModal({ row, onClose }: { row: PlanRequestRow; onClose: () => 
               Filiação
             </div>
             <div style={fieldRowStyle}>
-              <Field label="Nome do Pai" value={row.father_name} />
-              <Field label="Nome da Mãe" value={row.mother_name} />
+              <KycField label="Nome do Pai" value={row.father_name} />
+              <KycField label="Nome da Mãe" value={row.mother_name} />
             </div>
           </div>
 
@@ -364,11 +370,11 @@ function KycDetailModal({ row, onClose }: { row: PlanRequestRow; onClose: () => 
               Profissional
             </div>
             <div style={fieldRowStyle}>
-              <Field label="Profissão" value={row.profession} />
-              <Field label="Renda Mensal" value={row.monthly_income_cents ? fmtCents(row.monthly_income_cents) : null} icon={<DollarSign size={10} strokeWidth={2} />} />
+              <KycField label="Profissão" value={row.profession} />
+              <KycField label="Renda Mensal" value={row.monthly_income_cents ? fmtCents(row.monthly_income_cents) : null} icon={<DollarSign size={10} strokeWidth={2} />} />
             </div>
             <div style={fieldRowStyle}>
-              <Field label="Patrimônio" value={row.patrimony_cents ? fmtCents(row.patrimony_cents) : null} icon={<Wallet size={10} strokeWidth={2} />} />
+              <KycField label="Patrimônio" value={row.patrimony_cents ? fmtCents(row.patrimony_cents) : null} icon={<Wallet size={10} strokeWidth={2} />} />
               <div />
             </div>
           </div>
@@ -379,18 +385,18 @@ function KycDetailModal({ row, onClose }: { row: PlanRequestRow; onClose: () => 
               <Home size={11} strokeWidth={2} />
               Endereço
             </div>
-            <div style={{ ...fieldStyle, marginBottom: '0.5rem' }}>
-              <span style={fieldLabelStyle}>Logradouro</span>
-              <span style={fieldValueStyle}>
+            <div style={{ ...kycFieldStyle, marginBottom: '0.5rem' }}>
+              <span style={kycFieldLabelStyle}>Logradouro</span>
+              <span style={kycFieldValueStyle}>
                 {[row.address_street, row.address_number, row.address_complement].filter(Boolean).join(', ') || '—'}
               </span>
             </div>
             <div style={fieldRowStyle}>
-              <Field label="Cidade" value={row.address_city} />
-              <Field label="UF" value={row.address_state} />
+              <KycField label="Cidade" value={row.address_city} />
+              <KycField label="UF" value={row.address_state} />
             </div>
             <div style={fieldRowStyle}>
-              <Field label="CEP" value={row.address_cep} />
+              <KycField label="CEP" value={row.address_cep} />
               <div />
             </div>
           </div>
@@ -402,8 +408,8 @@ function KycDetailModal({ row, onClose }: { row: PlanRequestRow; onClose: () => 
               Contato
             </div>
             <div style={fieldRowStyle}>
-              <Field label="Celular" value={row.phone} icon={<Phone size={10} strokeWidth={2} />} />
-              <Field label="E-mail" value={row.email} icon={<Mail size={10} strokeWidth={2} />} />
+              <KycField label="Celular" value={row.phone} icon={<Phone size={10} strokeWidth={2} />} />
+              <KycField label="E-mail" value={row.email} icon={<Mail size={10} strokeWidth={2} />} />
             </div>
           </div>
 

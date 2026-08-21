@@ -10,26 +10,43 @@
  * - CPF masked input with validation and dynamic status
  */
 
-import { useState, useId, useRef, useCallback, useEffect } from 'react';
+import { useState, useId, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { AvatarCropModal } from './avatar-crop-modal';
-import {
-  updateProfileNameAction,
-  updateProfileCpfAction,
-  updateProfilePasswordAction,
-  updateProfileAvatarAction,
-  updateProfilePhoneAction,
-} from './perfil.actions';
+import { apiFetch } from '@/lib/api-client';
 
-// Mantém referência para clientes com cache antigo não quebrarem
-void updateProfileAvatarAction;
+type ProfileApiResult = {
+  ok: boolean;
+  message: string;
+  reauthenticationRequired?: boolean;
+};
 
-/** Ações que podem ser sincronizadas com o painel admin. */
-type SyncAction =
-  | { type: 'avatar'; payload: { url: string | null } }
-  | { type: 'cpf'; payload: { cpf: string } }
-  | { type: 'password'; payload: { newPassword: string } }
-  | { type: 'basic_info' | 'name_typing'; payload: { name: string } };
+async function updateProfile(
+  body: Record<string, string>,
+): Promise<ProfileApiResult> {
+  const response = await apiFetch('/api/v1/profile', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = (await response.json()) as Partial<ProfileApiResult>;
+  return {
+    ok: response.ok && data.ok === true,
+    message: data.message ?? 'Não foi possível salvar a alteração.',
+    reauthenticationRequired: data.reauthenticationRequired,
+  };
+}
+
+const updateProfileNameAction = (name: string) =>
+  updateProfile({ action: 'name', name });
+const updateProfilePhoneAction = (phone: string) =>
+  updateProfile({ action: 'phone', phone });
+const updateProfileCpfAction = (cpf: string) =>
+  updateProfile({ action: 'cpf', cpf });
+const updateProfilePasswordAction = (
+  currentPassword: string,
+  newPassword: string,
+) => updateProfile({ action: 'password', currentPassword, newPassword });
 
 /* ═══════════════════════════════════════════════════════════
    CPF UTILITIES
@@ -151,10 +168,9 @@ interface AvatarSectionProps {
   displayName: string;
   avatarUrl: string | null;
   onAvatarChange: (url: string | null) => void;
-  syncProfileData: (payload: SyncAction) => void;
 }
 
-export function AvatarSection({ displayName, avatarUrl, onAvatarChange, syncProfileData }: AvatarSectionProps) {
+export function AvatarSection({ displayName, avatarUrl, onAvatarChange }: AvatarSectionProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -190,7 +206,7 @@ export function AvatarSection({ displayName, avatarUrl, onAvatarChange, syncProf
     try {
       const formData = new FormData();
       formData.append('avatar', croppedBlob, 'avatar.jpg');
-      const res = await fetch('/api/perfil/avatar', { method: 'POST', body: formData });
+      const res = await apiFetch('/api/v1/profile/avatar', { method: 'POST', body: formData });
       const data = await res.json();
       if (res.ok && data.avatarUrl) {
         onAvatarChange(data.avatarUrl);
@@ -329,16 +345,14 @@ export function Field({ id, label, helper, children }: FieldProps) {
 interface CpfInputProps {
   id: string;
   initialCpf: string | null;
-  syncProfileData: (payload: SyncAction) => void;
 }
 
-export function CpfInput({ id, initialCpf, syncProfileData }: CpfInputProps) {
+export function CpfInput({ id, initialCpf }: CpfInputProps) {
   const initialDigits = (initialCpf ?? '').replace(/\D/g, '').slice(0, 11);
   const [raw, setRaw] = useState(initialDigits);
   const [masked, setMasked] = useState(maskCpf(initialDigits));
   const [editing, setEditing] = useState(false);
   const [touched, setTouched] = useState(false);
-  const [cpfSaved, setCpfSaved] = useState(!!initialDigits);
 
   const digits = raw.replace(/\D/g, '');
   const isFilled = digits.length === 11;
@@ -351,12 +365,9 @@ export function CpfInput({ id, initialCpf, syncProfileData }: CpfInputProps) {
     setRaw(newDigits);
     setMasked(maskCpf(newDigits));
     setTouched(true);
-    setCpfSaved(false);
 
     if (newDigits.length === 11 && validateCpf(newDigits)) {
-      syncProfileData({ type: 'cpf', payload: { cpf: newDigits } });
-      const result = await updateProfileCpfAction(newDigits);
-      if (result.ok) setCpfSaved(true);
+      await updateProfileCpfAction(newDigits);
     }
   };
 
@@ -451,7 +462,7 @@ export function PasswordInput({ id, value, onChange, placeholder }: PasswordInpu
    SECURITY SECTION
    ═══════════════════════════════════════════════════════════ */
 
-export function SecuritySection({ syncProfileData }: { syncProfileData: (payload: SyncAction) => void }) {
+export function SecuritySection() {
   const curPassId = useId();
   const newPassId = useId();
   const confPassId = useId();
@@ -462,7 +473,7 @@ export function SecuritySection({ syncProfileData }: { syncProfileData: (payload
   const [passFeedback, setPassFeedback] = useState<string | null>(null);
   const [passLoading, setPassLoading] = useState(false);
 
-  const canUpdate = curPass.length > 0 && newPass.length >= 8 && newPass === confPass;
+  const canUpdate = curPass.length > 0 && newPass.length >= 15 && newPass === confPass;
 
   const handleChangeSenha = async () => {
     if (!canUpdate) return;
@@ -492,7 +503,7 @@ export function SecuritySection({ syncProfileData }: { syncProfileData: (payload
       </Field>
 
       <div className="pf-two-col">
-        <Field id={newPassId} label="Nova Senha" helper="Mínimo de 8 caracteres.">
+        <Field id={newPassId} label="Nova Senha" helper="Mínimo de 15 caracteres.">
           <PasswordInput id={newPassId} value={newPass} onChange={setNewPass} />
         </Field>
         <Field id={confPassId} label="Confirmar Nova Senha">
@@ -556,11 +567,6 @@ export function PerfilForm({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const syncProfileData = useCallback(async (action: SyncAction) => {
-    // Dados já são salvos diretamente pelas actions individuais
-    console.log('[Profile Sync]', action.type);
-  }, []);
-
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
@@ -579,15 +585,6 @@ export function PerfilForm({
     setSaving(false);
   };
 
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      if (fullName !== initialName) {
-        syncProfileData({ type: 'name_typing', payload: { name: fullName } });
-      }
-    }, 1000);
-    return () => clearTimeout(handler);
-  }, [fullName, initialName, syncProfileData]);
-
   return (
     <div className="pf-root">
       {/* ── Avatar column ── */}
@@ -595,7 +592,6 @@ export function PerfilForm({
         displayName={fullName}
         avatarUrl={avatarUrl}
         onAvatarChange={setAvatarUrl}
-        syncProfileData={syncProfileData}
       />
 
       {/* ── Form column ── */}
@@ -675,7 +671,7 @@ export function PerfilForm({
           <div className="pf-section">
             <span className="pf-section-label">Documentação</span>
             <Field id={cpfId} label="CPF" helper="Protegido por máscara. Mantido sob sigilo de Private Banking.">
-              <CpfInput id={cpfId} initialCpf={initialCpf} syncProfileData={syncProfileData} />
+              <CpfInput id={cpfId} initialCpf={initialCpf} />
             </Field>
           </div>
 
@@ -719,7 +715,7 @@ export function PerfilForm({
         </form>
 
         {/* ─ Segurança ─ */}
-        <SecuritySection syncProfileData={syncProfileData} />
+        <SecuritySection />
       </div>
     </div>
   );

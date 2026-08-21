@@ -40,8 +40,8 @@ export default function Header() {
           const isActive = isSectionItem && isRoot && activeSection === id;
 
           if (isSectionItem) {
-            /* Fora da raiz (ex: /copiloto), href relativo "#section" vira
-               "/copiloto#section". Prefixar com "/" garante "/#section". */
+            /* Em rotas internas, prefixar com "/" garante um link para a
+               seção correspondente da página inicial. */
             const href = isRoot ? item.href : `/${item.href}`;
             return (
               <a key={item.href} href={href} className={isActive ? 'is-active' : ''}>

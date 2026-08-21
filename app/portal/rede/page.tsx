@@ -20,6 +20,9 @@ function serializableTree(node: NetworkTreeNode): NetworkTreeNode {
     displayName: String(node.displayName ?? '—'),
     active: Boolean(node.active),
     level: Number(node.level),
+    levelInBase: Number(node.levelInBase),
+    isNewBase: Boolean(node.isNewBase),
+    avatarUrl: node.avatarUrl ?? null,
     children: (node.children ?? []).map(serializableTree),
   };
 }

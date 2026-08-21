@@ -27,7 +27,7 @@
 
 ---
 
-## Dev Agent Record
+## Implementation Record
 
 ### Tasks Checklist
 - [x] Criar componente Button

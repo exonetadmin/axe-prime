@@ -469,6 +469,11 @@ const TELEMETRY_LINES = [
 ];
 
 function PremiumWaitingScreen({ pendingRequest }: { pendingRequest: PlanRequestRow | null }) {
+  const protocolSuffix = (pendingRequest?.id ?? 'PENDING')
+    .replace(/[^a-z0-9]/gi, '')
+    .slice(-6)
+    .padStart(6, '0')
+    .toUpperCase();
   const [telemetry, setTelemetry] = useState<string[]>([]);
   const [currentLineIndex, setCurrentLineIndex] = useState(0);
   const [typedChars, setTypedChars] = useState('');
@@ -627,7 +632,7 @@ function PremiumWaitingScreen({ pendingRequest }: { pendingRequest: PlanRequestR
           <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
             <div>
               <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-soft)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Protocolo</span>
-              <span style={{ fontSize: '1rem', fontFamily: 'monospace', color: 'var(--text)' }}>AXP-{Math.floor(Date.now() / 1000).toString().slice(-6)}</span>
+              <span style={{ fontSize: '1rem', fontFamily: 'monospace', color: 'var(--text)' }}>AXP-{protocolSuffix}</span>
             </div>
             {pendingRequest && (
               <>
@@ -738,4 +743,3 @@ function PremiumWaitingScreen({ pendingRequest }: { pendingRequest: PlanRequestR
     </div>
   );
 }
-

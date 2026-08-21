@@ -1,283 +1,360 @@
-import { describe, it, expect, vi, beforeEach, MockedFunction } from 'vitest';
+// @vitest-environment node
+
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/src/server/security/password', () => ({
+  hashPassword: vi.fn(async () => 'scrypt$mock'),
+  verifyPassword: vi.fn(async () => true),
+  passwordNeedsRehash: vi.fn(() => false),
+}));
+
 import { AuthService } from '../services/auth.service';
 import {
-  InvalidCredentialsError,
   EmailExistsError,
+  InvalidCredentialsError,
   InvalidReferralCodeError,
-  ValidationError,
   InvalidTokenError,
+  PasswordResetUnavailableError,
+  RefreshTokenReplayError,
+  ValidationError,
 } from '../auth.contract';
-import { UserBuilder } from '../../../../test/builders/user.builder';
-import { UserRepository } from '../repositories/user.repository';
-import type { UserRecord } from '../repositories/user.repository';
+import type { UserRecord, UserRepository } from '../repositories/user.repository';
+import type { SessionRepository } from '../repositories/session.repository';
+import type { PasswordResetDelivery } from '../services/password-reset-delivery';
+import { passwordNeedsRehash, verifyPassword } from '@/src/server/security/password';
 
-// Type matching UserRepository class structure
-type MockUserRepo = {
-  findByEmail: MockedFunction<UserRepository['findByEmail']>;
-  findById: MockedFunction<UserRepository['findById']>;
-  create: MockedFunction<UserRepository['create']>;
-  updatePassword: MockedFunction<UserRepository['updatePassword']>;
-  setResetToken: MockedFunction<UserRepository['setResetToken']>;
-  findByResetToken: MockedFunction<UserRepository['findByResetToken']>;
-  clearResetToken: MockedFunction<UserRepository['clearResetToken']>;
-  emailExists: MockedFunction<UserRepository['emailExists']>;
-  count: MockedFunction<UserRepository['count']>;
-  findByReferralCode: MockedFunction<UserRepository['findByReferralCode']>;
-};
+process.env.JWT_ACCESS_SECRET = Buffer.alloc(32, 7).toString('base64');
+process.env.AUTH_TOKEN_PEPPER = Buffer.alloc(32, 9).toString('base64');
 
-/** Helper para criar um UserRecord mock com defaults seguros */
 function makeUserRecord(overrides: Partial<UserRecord> = {}): UserRecord {
   return {
     id: 'user-1',
     name: 'Test User',
     email: 'test@example.com',
-    password_hash:
-      '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.VTtYA.qGZvKG6G',
+    password_hash: '$2a$12$legacy',
+    phone: '(11) 99999-9999',
     plan_interest: 'prime',
-    sponsor_id: null,
-    referral_code: 'AP-TEST0001',
+    sponsor_id: 'sponsor-1',
+    referral_code: 'AP-ABCDEFGH',
     avatar_url: null,
     cpf: null,
-    reset_token: null,
-    reset_token_expires: null,
     adhesion_at: null,
     plan_monthly_cents: null,
     adhesion_value_cents: null,
     kyc_submitted: false,
     is_active: true,
-    created_at: new Date().toISOString(),
+    token_version: 2,
+    password_changed_at: null,
+    last_login_at: null,
+    created_at: '2026-01-01T00:00:00.000Z',
     ...overrides,
   };
 }
 
-// Mock the repository
-const mockUserRepo: MockUserRepo = {
-  findByEmail: vi.fn(),
-  findById: vi.fn(),
-  create: vi.fn(),
-  updatePassword: vi.fn(),
-  setResetToken: vi.fn(),
-  findByResetToken: vi.fn(),
-  clearResetToken: vi.fn(),
-  emailExists: vi.fn(),
-  count: vi.fn(),
-  findByReferralCode: vi.fn(),
-};
-
-// Mock environment variable
-process.env.SESSION_SECRET = 'test-secret-key-that-is-32-chars-long-for-testing';
+function domainUser(record: UserRecord) {
+  return {
+    id: record.id,
+    name: record.name,
+    email: record.email,
+    phone: record.phone,
+    planInterest: record.plan_interest as 'start' | 'prime' | 'elite' | null,
+    sponsorId: record.sponsor_id,
+    referralCode: record.referral_code ?? '',
+    createdAt: record.created_at,
+    avatarUrl: record.avatar_url,
+    cpf: record.cpf,
+    adhesionValueCents: record.adhesion_value_cents,
+  };
+}
 
 describe('AuthService', () => {
-  let authService: AuthService;
+  const record = makeUserRecord();
+  const userRepo = {
+    findByEmail: vi.fn(),
+    findById: vi.fn(),
+    create: vi.fn(),
+    findByReferralCode: vi.fn(),
+    updatePasswordHash: vi.fn(),
+    markLogin: vi.fn(),
+    updateReferralCode: vi.fn(),
+  };
+  const sessionRepo = {
+    createUserSession: vi.fn(),
+    validateAccessSession: vi.fn(),
+    validateRefreshSession: vi.fn(),
+    rotateRefreshToken: vi.fn(),
+    findRefreshSessionId: vi.fn(),
+    revokeSession: vi.fn(),
+    revokeByRefreshToken: vi.fn(),
+    createPasswordResetToken: vi.fn(),
+    findActivePasswordResetUser: vi.fn(),
+    invalidatePasswordResetToken: vi.fn(),
+    consumePasswordResetToken: vi.fn(),
+  };
+  const resetDelivery = {
+    isConfigured: vi.fn(),
+    deliver: vi.fn(),
+  };
+  let service: AuthService;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    authService = new AuthService(mockUserRepo as unknown as UserRepository);
+    vi.mocked(verifyPassword).mockResolvedValue(true);
+    vi.mocked(passwordNeedsRehash).mockReturnValue(false);
+    userRepo.findByEmail.mockResolvedValue(record);
+    userRepo.findById.mockResolvedValue(record);
+    userRepo.findByReferralCode.mockImplementation(async (code: string) =>
+      code === 'AP-SPONSOR1'
+        ? makeUserRecord({
+            id: 'sponsor-1',
+            email: 'sponsor@example.com',
+            referral_code: 'AP-SPONSOR1',
+          })
+        : null
+    );
+    userRepo.create.mockResolvedValue(domainUser(record));
+    userRepo.updatePasswordHash.mockResolvedValue(true);
+    userRepo.markLogin.mockResolvedValue(undefined);
+    sessionRepo.createUserSession.mockResolvedValue({
+      sessionId: '11111111-1111-4111-8111-111111111111',
+      refreshToken: 'refresh-secret',
+      refreshTokenExpiresAt: new Date('2026-02-01T00:00:00.000Z'),
+      userId: record.id,
+      tokenVersion: record.token_version,
+    });
+    sessionRepo.validateAccessSession.mockResolvedValue(true);
+    sessionRepo.findActivePasswordResetUser.mockResolvedValue(record.id);
+    sessionRepo.findRefreshSessionId.mockResolvedValue('11111111-1111-4111-8111-111111111111');
+    sessionRepo.createPasswordResetToken.mockResolvedValue('r'.repeat(64));
+    resetDelivery.isConfigured.mockReturnValue(true);
+    resetDelivery.deliver.mockResolvedValue(undefined);
+    service = new AuthService(
+      userRepo as unknown as UserRepository,
+      sessionRepo as unknown as SessionRepository,
+      resetDelivery as unknown as PasswordResetDelivery
+    );
   });
 
-  describe('login', () => {
-    it('should authenticate valid user', async () => {
-      const mockUser = makeUserRecord({ referral_code: 'AP-TEST0001' });
-      mockUserRepo.findByEmail.mockResolvedValue(mockUser);
-
-      const result = await authService.login({
-        email: 'test@example.com',
-        password: 'password123',
-      });
-
-      expect(result.user).toBeDefined();
-      expect(result.user.email).toBe('test@example.com');
-      expect(result.token).toBeDefined();
+  it('issues a short access token and an opaque refresh token on login', async () => {
+    const result = await service.login({
+      email: ' TEST@EXAMPLE.COM ',
+      password: 'correct horse battery staple',
     });
 
-    it('should throw InvalidCredentialsError for wrong password', async () => {
-      const mockUser = makeUserRecord({
-        password_hash: '$2a$12$hashedpassword',
-      });
-      mockUserRepo.findByEmail.mockResolvedValue(mockUser);
-
-      await expect(
-        authService.login({
-          email: 'test@example.com',
-          password: 'wrongpassword',
-        })
-      ).rejects.toThrow(InvalidCredentialsError);
-    });
-
-    it('should throw InvalidCredentialsError for non-existent user', async () => {
-      mockUserRepo.findByEmail.mockResolvedValue(null);
-
-      await expect(
-        authService.login({
-          email: 'nonexistent@example.com',
-          password: 'password123',
-        })
-      ).rejects.toThrow(InvalidCredentialsError);
-    });
-
-    it('should throw ValidationError for missing credentials', async () => {
-      await expect(
-        authService.login({ email: '', password: 'password123' })
-      ).rejects.toThrow(ValidationError);
-
-      await expect(
-        authService.login({ email: 'test@example.com', password: '' })
-      ).rejects.toThrow(ValidationError);
-    });
+    expect(result.user.email).toBe('test@example.com');
+    expect(result.accessToken.split('.')).toHaveLength(3);
+    expect(result.refreshToken).toBe('refresh-secret');
+    expect(userRepo.findByEmail).toHaveBeenCalledWith('test@example.com');
   });
 
-  const validSponsorRecord = makeUserRecord({
-    id: 'sponsor-1',
-    name: 'Sponsor',
-    email: 'sponsor@example.com',
-    password_hash: 'hashed',
-    referral_code: 'AP-SPONSOR1',
-    sponsor_id: null,
+  it('rejects a wrong password with a generic credentials error', async () => {
+    vi.mocked(verifyPassword).mockResolvedValue(false);
+    await expect(
+      service.login({ email: 'test@example.com', password: 'wrong password' })
+    ).rejects.toThrow(InvalidCredentialsError);
   });
 
-  describe('register', () => {
-    it('should create new user successfully when sponsor code is valid', async () => {
-      mockUserRepo.findByEmail.mockResolvedValue(null);
-      mockUserRepo.findByReferralCode.mockImplementation((code: string) =>
-        code === 'AP-SPONSOR1'
-          ? Promise.resolve(validSponsorRecord)
-          : Promise.resolve(null)
-      );
-      mockUserRepo.create.mockResolvedValue(
-        new UserBuilder()
-          .withEmail('new@example.com')
-          .withPlan('prime')
-          .build()
-      );
+  it('does not restore a legacy password when a reset wins the rehash race', async () => {
+    vi.mocked(passwordNeedsRehash).mockReturnValue(true);
+    userRepo.updatePasswordHash.mockResolvedValue(false);
+    userRepo.findById.mockResolvedValue(
+      makeUserRecord({
+        password_hash: 'scrypt$131072$8$1$new-salt$new-password-hash',
+        token_version: record.token_version + 1,
+      })
+    );
 
-      const result = await authService.register({
+    await expect(
+      service.login({
+        email: record.email,
+        password: 'the previously valid legacy password',
+      })
+    ).rejects.toThrow(InvalidCredentialsError);
+    expect(sessionRepo.createUserSession).not.toHaveBeenCalled();
+  });
+
+  it('rejects a missing user without revealing whether the email exists', async () => {
+    userRepo.findByEmail.mockResolvedValue(null);
+    await expect(
+      service.login({ email: 'missing@example.com', password: 'some password' })
+    ).rejects.toThrow(InvalidCredentialsError);
+  });
+
+  it('requires all login fields', async () => {
+    await expect(service.login({ email: '', password: 'password' })).rejects.toThrow(
+      ValidationError
+    );
+  });
+
+  it('registers only with a valid sponsor and a long password', async () => {
+    userRepo.findByEmail.mockResolvedValue(null);
+    userRepo.findByReferralCode.mockImplementation(async (code: string) => {
+      if (code === 'AP-SPONSOR1') {
+        return makeUserRecord({ id: 'sponsor-1', referral_code: code });
+      }
+      return null;
+    });
+    userRepo.create.mockImplementation(async data => ({
+      ...domainUser(record),
+      id: data.id,
+      email: data.email,
+      referralCode: data.referralCode,
+    }));
+    userRepo.findById.mockImplementation(async (id: string) =>
+      makeUserRecord({ id, email: 'new@example.com' })
+    );
+
+    const result = await service.register({
+      name: 'New User',
+      email: 'NEW@example.com',
+      password: 'uma frase senha bem longa',
+      phone: '(11) 99999-9999',
+      planInterest: null,
+      referralCode: 'AP-SPONSOR1',
+    });
+
+    expect(result.user.email).toBe('new@example.com');
+    expect(userRepo.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects an invalid sponsor', async () => {
+    userRepo.findByEmail.mockResolvedValue(null);
+    userRepo.findByReferralCode.mockResolvedValue(null);
+    await expect(
+      service.register({
         name: 'New User',
         email: 'new@example.com',
-        password: 'Password123',
+        password: 'uma frase senha bem longa',
         phone: '(11) 99999-9999',
-        planInterest: 'prime',
+        referralCode: 'AP-ZZZZZZZZ',
+      })
+    ).rejects.toThrow(InvalidReferralCodeError);
+  });
+
+  it('rejects duplicate email', async () => {
+    await expect(
+      service.register({
+        name: 'New User',
+        email: 'test@example.com',
+        password: 'uma frase senha bem longa',
+        phone: '(11) 99999-9999',
         referralCode: 'AP-SPONSOR1',
-      });
+      })
+    ).rejects.toThrow(EmailExistsError);
+  });
 
-      expect(result.user).toBeDefined();
-      expect(result.user.email).toBe('new@example.com');
-      expect(mockUserRepo.create).toHaveBeenCalled();
+  it('rejects new passwords shorter than 15 characters', async () => {
+    userRepo.findByEmail.mockResolvedValue(null);
+    await expect(
+      service.register({
+        name: 'New User',
+        email: 'new@example.com',
+        password: 'short password',
+        phone: '(11) 99999-9999',
+        referralCode: 'AP-SPONSOR1',
+      })
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it('rotates refresh tokens and preserves the database session id', async () => {
+    sessionRepo.rotateRefreshToken.mockResolvedValue({
+      status: 'ok',
+      credentials: {
+        sessionId: '11111111-1111-4111-8111-111111111111',
+        refreshToken: 'next-refresh-secret',
+        refreshTokenExpiresAt: new Date('2026-02-01T00:00:00.000Z'),
+        userId: record.id,
+        tokenVersion: record.token_version,
+      },
     });
 
-    it('should throw InvalidReferralCodeError when sponsor code is invalid', async () => {
-      mockUserRepo.findByEmail.mockResolvedValue(null);
-      mockUserRepo.findByReferralCode.mockResolvedValue(null);
+    const result = await service.refresh('current-refresh-secret');
+    expect(result.refreshToken).toBe('next-refresh-secret');
+    expect(result.sessionId).toBe('11111111-1111-4111-8111-111111111111');
+  });
 
-      await expect(
-        authService.register({
-          name: 'New User',
-          email: 'new@example.com',
-          password: 'Password123',
-          phone: '(11) 99999-9999',
-          planInterest: 'prime',
-          referralCode: 'INVALID-CODE',
-        })
-      ).rejects.toThrow(InvalidReferralCodeError);
+  it('revokes a rotated session when access-token signing fails', async () => {
+    sessionRepo.rotateRefreshToken.mockResolvedValue({
+      status: 'ok',
+      credentials: {
+        sessionId: '11111111-1111-4111-8111-111111111111',
+        refreshToken: 'next-refresh-secret',
+        refreshTokenExpiresAt: new Date('2026-02-01T00:00:00.000Z'),
+        userId: record.id,
+        tokenVersion: record.token_version,
+      },
     });
+    const signingSecret = process.env.JWT_ACCESS_SECRET;
+    process.env.JWT_ACCESS_SECRET = Buffer.from('too-short').toString('base64');
+    try {
+      await expect(service.refresh('current-refresh-secret')).rejects.toThrow('JWT_ACCESS_SECRET');
+    } finally {
+      process.env.JWT_ACCESS_SECRET = signingSecret;
+    }
+    expect(sessionRepo.revokeSession).toHaveBeenCalledWith(
+      '11111111-1111-4111-8111-111111111111',
+      'token_issuance_failed'
+    );
+  });
 
-    it('should throw ValidationError when sponsor code is missing', async () => {
-      mockUserRepo.findByEmail.mockResolvedValue(null);
+  it('revokes the logical session when refresh replay is detected', async () => {
+    sessionRepo.rotateRefreshToken.mockResolvedValue({ status: 'replayed' });
+    await expect(service.refresh('replayed')).rejects.toThrow(RefreshTokenReplayError);
+  });
 
-      await expect(
-        authService.register({
-          name: 'New User',
-          email: 'new@example.com',
-          password: 'Password123',
-          phone: '(11) 99999-9999',
-          planInterest: 'prime',
-          referralCode: '',
-        })
-      ).rejects.toThrow(ValidationError);
+  it('resolves a stable session subject for refresh rate limiting', async () => {
+    await expect(service.getRefreshRateLimitSubject('rotating-secret')).resolves.toBe(
+      '11111111-1111-4111-8111-111111111111'
+    );
+    expect(sessionRepo.findRefreshSessionId).toHaveBeenCalledWith('rotating-secret');
+  });
+
+  it('validates both JWT and revocable sid for backend requests', async () => {
+    const login = await service.login({
+      email: 'test@example.com',
+      password: 'correct horse battery staple',
     });
-
-    it('should throw EmailExistsError for duplicate email', async () => {
-      mockUserRepo.findByEmail.mockResolvedValue(
-        makeUserRecord({
-          id: 'existing',
-          name: 'Existing User',
-          email: 'existing@example.com',
-          referral_code: 'AP-EXIST001',
-        })
-      );
-      mockUserRepo.findByReferralCode.mockResolvedValue(validSponsorRecord);
-
-      await expect(
-        authService.register({
-          name: 'Test',
-          email: 'existing@example.com',
-          password: 'Password123',
-          phone: '(11) 99999-9999',
-          planInterest: 'prime',
-          referralCode: 'AP-SPONSOR1',
-        })
-      ).rejects.toThrow(EmailExistsError);
+    const request = new Request('https://axe.example/api/private', {
+      headers: { Authorization: `Bearer ${login.accessToken}` },
     });
+    const user = await service.authenticateRequest(request);
+    expect(user?.id).toBe(record.id);
+    expect(sessionRepo.validateAccessSession).toHaveBeenCalledWith(
+      login.sessionId,
+      record.id,
+      record.token_version
+    );
+  });
 
-    it('should throw ValidationError for weak password', async () => {
-      mockUserRepo.findByEmail.mockResolvedValue(null);
-      mockUserRepo.findByReferralCode.mockResolvedValue(validSponsorRecord);
+  it('rejects an invalid or expired password reset token', async () => {
+    sessionRepo.consumePasswordResetToken.mockResolvedValue(null);
+    await expect(
+      service.resetPassword('invalid-token', 'uma frase senha bem longa')
+    ).rejects.toThrow(InvalidTokenError);
+  });
 
-      await expect(
-        authService.register({
-          name: 'Test',
-          email: 'test@example.com',
-          password: 'weak',
-          phone: '(11) 99999-9999',
-          planInterest: 'prime',
-          referralCode: 'AP-SPONSOR1',
-        })
-      ).rejects.toThrow(ValidationError);
-    });
+  it('returns unavailable before account lookup when reset delivery is not configured', async () => {
+    resetDelivery.isConfigured.mockReturnValue(false);
+    await expect(service.requestPasswordReset('test@example.com')).rejects.toThrow(
+      PasswordResetUnavailableError
+    );
+    expect(userRepo.findByEmail).not.toHaveBeenCalled();
+  });
 
-    it('should throw ValidationError for short name', async () => {
-      mockUserRepo.findByEmail.mockResolvedValue(null);
-      mockUserRepo.findByReferralCode.mockResolvedValue(validSponsorRecord);
-
-      await expect(
-        authService.register({
-          name: 'A',
-          email: 'test@example.com',
-          password: 'Password123',
-          phone: '(11) 99999-9999',
-          planInterest: 'prime',
-          referralCode: 'AP-SPONSOR1',
-        })
-      ).rejects.toThrow(ValidationError);
+  it('delivers a reset token only through the server-side adapter', async () => {
+    await service.requestPasswordReset('test@example.com');
+    expect(resetDelivery.deliver).toHaveBeenCalledWith({
+      email: record.email,
+      name: record.name,
+      resetToken: 'r'.repeat(64),
     });
   });
 
-  describe('getCurrentUser', () => {
-    it('should return null when no session', async () => {
-      const user = await authService.getCurrentUser();
-      expect(user).toBeNull();
-    });
-  });
-
-  describe('isAuthenticated', () => {
-    it('should return false when no session', async () => {
-      const isAuth = await authService.isAuthenticated();
-      expect(isAuth).toBe(false);
-    });
-  });
-
-  describe('resetPassword', () => {
-    it('should throw InvalidTokenError for invalid token', async () => {
-      mockUserRepo.findByResetToken.mockResolvedValue(null);
-
-      await expect(
-        authService.resetPassword('invalid-token', 'NewPassword123')
-      ).rejects.toThrow(InvalidTokenError);
-    });
-
-    it('should throw ValidationError for weak new password', async () => {
-      await expect(
-        authService.resetPassword('valid-token', 'weak')
-      ).rejects.toThrow(ValidationError);
-    });
+  it('invalidates a reset token when delivery fails', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    resetDelivery.deliver.mockRejectedValue(new Error('provider unavailable'));
+    await expect(service.requestPasswordReset('test@example.com')).resolves.toBeUndefined();
+    expect(sessionRepo.invalidatePasswordResetToken).toHaveBeenCalledWith('r'.repeat(64));
+    consoleError.mockRestore();
   });
 });

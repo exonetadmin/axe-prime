@@ -1,7 +1,8 @@
-"use client";
+'use client';
 
-import { startTransition, useState } from "react";
-import { useRouter } from "next/navigation";
+import { startTransition, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { apiFetch } from '@/lib/api-client';
 
 export default function LogoutButton() {
   const router = useRouter();
@@ -11,12 +12,12 @@ export default function LogoutButton() {
     setPending(true);
 
     try {
-      await fetch("/api/auth/logout", {
-        method: "POST",
+      await apiFetch('/api/auth/logout', {
+        method: 'POST',
       });
 
       startTransition(() => {
-        router.push("/");
+        router.push('/');
         router.refresh();
       });
     } finally {
@@ -25,14 +26,8 @@ export default function LogoutButton() {
   };
 
   return (
-    <button
-      type="button"
-      className="secondary-button"
-      onClick={handleLogout}
-      disabled={pending}
-    >
-      {pending ? "Encerrando..." : "Sair"}
+    <button type="button" className="secondary-button" onClick={handleLogout} disabled={pending}>
+      {pending ? 'Encerrando...' : 'Sair'}
     </button>
   );
 }
-

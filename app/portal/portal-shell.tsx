@@ -15,7 +15,6 @@ import {
   Award,
   Menu,
   X,
-  Bot,
   Star,
   Trophy,
 } from 'lucide-react';
@@ -38,7 +37,6 @@ const secondaryNav = [
   { href: '/portal/premios', label: 'Prêmios', icon: Trophy },
   { href: '/portal/rede', label: 'Minha Equipe', icon: Users },
   { href: '/portal/carreira', label: 'Carreira', icon: Award },
-  { href: '/portal/copiloto', label: 'Copiloto', icon: Bot },
   { href: '/portal/perfil', label: 'Perfil', icon: User },
 ];
 

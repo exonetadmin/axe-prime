@@ -80,7 +80,6 @@ export const siteUrl = "https://www.axeprime.com.br";
 export const navItems: NavItem[] = [
   { label: "Direção", href: "#manifesto", kind: "section" },
   { label: "Benefícios", href: "#beneficios", kind: "section" },
-  { label: "Copiloto IA", href: "/copiloto", kind: "route" },
   { label: "Carreira", href: "#carreira", kind: "section" },
   { label: "FAQ", href: "#faq", kind: "section" },
   { label: "Simulador de investimentos", href: "/simulador", kind: "route" },
@@ -149,52 +148,6 @@ export const lifestyleBenefits: ContentCard[] = [
     icon: "sparkles",
   },
 ];
-
-export const copilotoFeatures: ContentCard[] = [
-  {
-    eyebrow: "Análise Patrimonial",
-    title: "Lê seu momento. Aponta o caminho.",
-    body: "O Copiloto analisa seu perfil financeiro e de carreira em tempo real, entregando orientações personalizadas baseadas na sua camada atual dentro da estrutura AXE. Sem respostas genéricas — cada análise é construída para o seu contexto.",
-    icon: "network",
-    tag: "Sem respostas genéricas.",
-  },
-  {
-    eyebrow: "Plano de Carreira",
-    title: "Próximos passos com clareza.",
-    body: "A IA mapeia sua progressão dentro da AXE PRIME, identifica lacunas e sugere ações concretas para avançar para a próxima camada com mais velocidade. Sem achismo. Só dado e direção.",
-    icon: "layers",
-    tag: "Só dado e direção.",
-  },
-  {
-    eyebrow: "Estratégia de Investimento",
-    title: "Inteligência no capital que você movimenta.",
-    body: "Com base no seu histórico e nos produtos disponíveis na estrutura, o Copiloto sugere alocações inteligentes, timing de entrada e gestão de risco alinhados ao seu perfil.",
-    icon: "chart",
-    tag: "Decisão informada. Execução precisa.",
-  },
-  {
-    eyebrow: "Gestão de Rede",
-    title: "Sua rede, sob controle estratégico.",
-    body: "Monitore o desempenho dos membros da sua estrutura, identifique quem precisa de atenção e receba sugestões de ativação e retenção geradas automaticamente.",
-    icon: "gem",
-    tag: "Menos operação manual. Mais resultado.",
-  },
-  {
-    eyebrow: "Consultoria 24/7",
-    title: "Disponível quando você precisar.",
-    body: "Diferente de um consultor humano, o Copiloto não tem horário. Tire dúvidas, peça análises e receba orientações a qualquer hora, em qualquer dispositivo.",
-    icon: "globe",
-    tag: "Acesso imediato. Zero burocracia.",
-  },
-  {
-    eyebrow: "Simulações em Tempo Real",
-    title: "Cenários antes de tomar qualquer decisão.",
-    body: "Projete retornos, simule impactos de diferentes aportes e visualize trajetórias patrimoniais antes de comprometer qualquer recurso.",
-    icon: "sparkles",
-    tag: "Clareza antes da ação.",
-  },
-];
-
 
 export const careerSteps: CareerStep[] = [
   {

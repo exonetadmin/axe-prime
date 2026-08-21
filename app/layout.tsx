@@ -53,11 +53,11 @@ export const metadata: Metadata = {
     alternateLocale: "en_US",
     images: [
       {
-        url: "/brand/og-image.png",
+        url: "/brand/og-image.jpg",
         width: 1080,
         height: 1080,
         alt: seoCopy.imageAlt,
-        type: "image/png",
+        type: "image/jpeg",
       },
     ],
   },
@@ -65,7 +65,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: seoCopy.title,
     description: seoCopy.openGraphDescription,
-    images: ["/brand/og-image.png"],
+    images: ["/brand/og-image.jpg"],
     creator: "@axeprime",
   },
   authors: [{ name: "AXE PRIME" }],
@@ -80,7 +80,6 @@ export const metadata: Metadata = {
       { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
     ],
   },
-  manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     title: "AXE PRIME",

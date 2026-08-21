@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getAuthenticatedUser } from '@/lib/auth';
 import { networkService } from '@/src/features/network';
-import { supabase } from '@/lib/supabase';
+import { walletRepository } from '@/src/features/wallet/wallet.repository';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,36 +24,19 @@ type RealCommission = {
 };
 
 async function loadRealCommissions(userId: string): Promise<RealCommission[]> {
-  const { data } = await supabase
-    .from('commission_entries')
-    .select('id, referred_user_id, type, level, amount_cents, period, status, created_at')
-    .eq('sponsor_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(100);
-
-  if (!data || data.length === 0) return [];
-
-  const referredIds = [...new Set(data.map((r) => r.referred_user_id).filter(Boolean))];
-  const nameMap: Record<string, string> = {};
-  if (referredIds.length > 0) {
-    const { data: users } = await supabase
-      .from('users')
-      .select('id, name')
-      .in('id', referredIds);
-    for (const u of users ?? []) {
-      nameMap[u.id] = u.name ?? 'Parceiro';
-    }
-  }
-
-  return data.map((r) => ({
+  const rows = await walletRepository.listCommissions(userId, 100);
+  return rows.map((r) => ({
     id: r.id,
-    referredName: nameMap[r.referred_user_id] ?? 'Parceiro',
+    referredName: r.referred_name,
     type: r.type,
     level: r.level ?? 0,
     amountCents: r.amount_cents ?? 0,
     period: r.period ?? '',
     status: r.status ?? 'available',
-    createdAt: r.created_at,
+    createdAt:
+      r.created_at instanceof Date
+        ? r.created_at.toISOString()
+        : r.created_at,
   }));
 }
 

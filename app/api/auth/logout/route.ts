@@ -1,21 +1,26 @@
-import { NextResponse } from 'next/server';
-import { authService } from '../../../../src/features/auth';
+import { authService } from '@/src/features/auth';
+import {
+  ACCESS_TOKEN_COOKIE,
+  readBearerToken,
+  REFRESH_TOKEN_COOKIE,
+} from '@/src/server/security/tokens';
+import { assertMutationSecurity, readCookieToken } from '@/src/server/security/request';
+import { authJson, commonAuthError } from '../_http';
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
-    // Logout from service (emits events)
-    await authService.logout();
+    assertMutationSecurity(request);
+    const bearer = readBearerToken(request);
 
-    // Clear session cookie
-    const response = NextResponse.json({ success: true });
-    authService.clearSessionCookie(response);
-
-    return response;
+    await authService.logout({
+      accessToken: bearer ?? readCookieToken(request, ACCESS_TOKEN_COOKIE),
+      refreshToken: readCookieToken(request, REFRESH_TOKEN_COOKIE),
+    });
+    return authService.clearSessionCookies(authJson({ success: true }));
   } catch (error) {
-    console.error('[Auth] Logout error:', error);
-    return NextResponse.json(
-      { error: 'Erro ao realizar logout.' },
-      { status: 500 }
-    );
+    const common = commonAuthError(error);
+    if (common) return common;
+    console.error('[Auth] Logout failed', error);
+    return authJson({ error: 'Erro ao realizar logout.' }, { status: 500 });
   }
 }

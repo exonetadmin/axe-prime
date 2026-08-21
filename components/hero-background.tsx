@@ -3,9 +3,7 @@
 import { useEffect, useRef } from 'react';
 
 /* ─────────────────────────────────────────────────────────────────────────────
- *  WebGL Voronoi shader background — adapted from the Orbital SaaS Hero
- *  Section Template. Colours shifted from red/magma to AXE PRIME's deep
- *  blue/cyan palette.
+ *  WebGL Voronoi shader background in the AXE PRIME deep blue/cyan palette.
  * ────────────────────────────────────────────────────────────────────────── */
 
 const VERTEX_SOURCE = `

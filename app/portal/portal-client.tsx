@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import PortalEntrySequence from '@/components/portal-entry-sequence';
 import portalEntryStyles from '@/components/portal-entry-sequence.module.css';
 import { usePortalEntryGate } from '@/hooks/use-portal-entry-gate';
-import AxeChat from './axe-chat';
 
 interface PortalClientProps {
   firstName: string;
@@ -69,7 +68,6 @@ export default function PortalClient({ firstName, children }: PortalClientProps)
       >
         {children}
       </div>
-      <AxeChat />
     </>
   );
 }

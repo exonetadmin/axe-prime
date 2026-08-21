@@ -29,7 +29,7 @@
 
 ---
 
-## Dev Agent Record
+## Implementation Record
 
 ### Tasks Checklist
 - [x] Criar story do polimento cinematográfico
@@ -57,7 +57,7 @@
 2026-03-14: O dock inferior foi ancorado na base da viewport para manter cards de etapa, headline e copy sempre visíveis na mesma composição.
 2026-03-14: O dock foi comprimido novamente com headline mais curta, copy menor e cards mais baixos para sair do limite inferior em desktops mais baixos.
 2026-03-14: O texto abaixo dos cards foi removido da abertura, deixando apenas as etapas e a barra de progresso para eliminar qualquer corte residual.
-2026-03-14: `npm test` global continua com falhas legadas em `.aiox-core/workflow-intelligence` e `src/features/auth/__tests__/auth.service.test.ts`.
+2026-03-14: `npm test` global continua com uma falha legada em `src/features/auth/__tests__/auth.service.test.ts`.
 ```
 
 ### Completion Notes

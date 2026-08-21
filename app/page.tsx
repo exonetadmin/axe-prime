@@ -1,6 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import Image from 'next/image';
 import Link from 'next/link';
 import {
   ArrowRight,
@@ -32,15 +31,10 @@ import SiteFooter from '@/components/site-footer';
 import {
   ascensionRequirements,
   careerSteps,
-  copilotoFeatures,
-  disclaimer,
   faqItems,
   heroMetrics,
   lifestyleBenefits,
-  packageTiers,
   proofHighlights,
-  relationshipLayers,
-  rewards,
   siteUrl,
   strategicPillars,
   testimonials,
@@ -327,58 +321,6 @@ export default function HomePage() {
 
           <Reveal>
             <TestimonialGrid items={testimonials} />
-          </Reveal>
-        </section>
-
-        {/* Copiloto section — banner premium */}
-        <section className="section cop-landing-banner">
-          <Reveal>
-            <div className="cop-banner-inner shell-panel">
-              <div className="cop-banner-copy">
-                <span className="section-label">Inteligência Estratégica</span>
-                <h2 className="section-title">Copiloto IA.<br />A inteligência que orienta cada decisão.</h2>
-                <p className="section-copy">
-                  Um motor de IA treinado exclusivamente com a tese da AXE PRIME. Análise patrimonial, simulações de cenários e treinamento de vendas — disponível a qualquer hora.
-                </p>
-                <div className="cop-banner-pills">
-                  <span className="category-chip">Análise patrimonial</span>
-                  <span className="category-chip">Roleplay de vendas</span>
-                  <span className="category-chip">IA exclusiva</span>
-                </div>
-                <div className="hero-actions">
-                  <Link href="/auth?mode=register" className="primary-button cop-shimmer-btn">
-                    Acessar o Copiloto
-                    <ArrowRight size={18} strokeWidth={1.8} />
-                  </Link>
-                  <Link href="/copiloto" className="secondary-button">
-                    Ver como funciona
-                  </Link>
-                </div>
-              </div>
-              <div className="cop-banner-visual" aria-hidden="true">
-                <div className="cop-preview-card shell-panel cop-liquid-glass">
-                  <div className="cop-preview-header">
-                    <span className="cop-preview-dot cop-breathing-dot" />
-                    <span className="cop-preview-label">Copiloto AXE</span>
-                    <span className="cop-preview-status">online</span>
-                  </div>
-                  <div className="cop-preview-body">
-                    <div className="cop-preview-bubble cop-bubble-bot cop-bubble-animated cop-bubble-1">
-                      Como posso orientar sua estratégia hoje?
-                    </div>
-                    <div className="cop-preview-bubble cop-bubble-user cop-bubble-animated cop-bubble-2">
-                      Simula um cliente cético sobre a estrutura.
-                    </div>
-                    <div className="cop-preview-bubble cop-bubble-bot cop-bubble-animated cop-bubble-3 cop-bubble-typing">
-                      Claro. Vou assumir o papel de um perfil desconfiante. Começo agora — pode responder como faria numa abordagem real.
-                    </div>
-                  </div>
-                  <div className="cop-preview-footer">
-                    <span className="cop-preview-prompt">Digite sua mensagem…</span>
-                  </div>
-                </div>
-              </div>
-            </div>
           </Reveal>
         </section>
 

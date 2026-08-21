@@ -1,142 +1,335 @@
-/**
- * Admin Repository — Supabase Postgres
- * Cross-user queries for the admin panel.
- */
+import 'server-only';
 
-import { supabase } from '@/lib/supabase';
-import { configRepository } from './config.repository';
-
-// ── Types ─────────────────────────────────────────────────────────────────────
+import { randomUUID } from 'node:crypto';
+import type { PoolClient } from 'pg';
+import {
+  execute,
+  postgresIntegerToSafeNumber,
+  query,
+  queryOne,
+  withTransaction,
+} from '@/src/server/db/postgres';
+import { encodeAvatarUserId, trustedAvatarUrl } from '@/src/features/profile/avatar-url';
 
 export type AdminUserRow = {
-  id: string; name: string; email: string; phone: string | null; plan_interest: string | null;
-  referral_code: string | null; sponsor_id: string | null; adhesion_at: string | null;
-  plan_monthly_cents: number | null; adhesion_value_cents: number | null;
-  cashback_pct: number | null; is_active: boolean | null; created_at: string;
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  plan_interest: string | null;
+  referral_code: string | null;
+  sponsor_id: string | null;
+  adhesion_at: string | null;
+  plan_monthly_cents: number | null;
+  adhesion_value_cents: number | null;
+  cashback_pct: number | null;
+  is_active: boolean | null;
+  created_at: string;
   career: string | null;
   adhesion_paid: boolean | null;
   monthly_status: 'paid' | 'overdue' | null;
 };
 
 export type AdminNetworkNode = {
-  id: string; name: string; email: string; sponsor_id: string | null;
-  adhesion_at: string | null; plan_interest: string | null;
+  id: string;
+  name: string;
+  email: string;
+  sponsor_id: string | null;
+  adhesion_at: string | null;
+  plan_interest: string | null;
   avatar_url: string | null;
-  globalLevel: number; levelInBase: number; isNewBase: boolean;
+  globalLevel: number;
+  levelInBase: number;
+  isNewBase: boolean;
   children: AdminNetworkNode[];
 };
 
 export type WithdrawalRequestRow = {
-  id: string; user_id: string; user_name: string; user_email: string;
-  amount_cents: number; pix_key: string; pix_key_type: string; status: 'pending' | 'approved' | 'rejected';
-  reviewed_by: string | null; reviewed_at: string | null; review_note: string | null;
-  created_at: string; requested_at: string;
+  id: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  amount_cents: number;
+  pix_key: string;
+  pix_key_type: string;
+  status: 'pending' | 'approved' | 'rejected';
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  review_note: string | null;
+  created_at: string;
+  requested_at: string;
 };
 
 export type CommissionRow = {
-  id: string; sponsor_id: string; sponsor_name: string;
-  referred_user_id: string; referred_name: string;
-  type: string; level: number; amount_cents: number;
-  period: string; status: string; created_at: string;
+  id: string;
+  sponsor_id: string;
+  sponsor_name: string;
+  referred_user_id: string;
+  referred_name: string;
+  type: string;
+  level: number;
+  amount_cents: number;
+  period: string;
+  status: string;
+  created_at: string;
 };
 
 export type PaymentRow = {
-  id: string; user_id: string; user_name: string;
-  amount_cents: number; period: string; paid_at: string;
+  id: string;
+  user_id: string;
+  user_name: string;
+  amount_cents: number;
+  period: string;
+  paid_at: string;
 };
 
 export type CashbackPaymentRow = {
-  id: string; user_id: string; month_number: number;
-  amount_cents: number; paid_at: string; paid_by: string | null;
+  id: string;
+  user_id: string;
+  month_number: number;
+  amount_cents: number;
+  paid_at: string;
+  paid_by: string | null;
 };
 
-// ── Repository ────────────────────────────────────────────────────────────────
+type RawNetworkUser = {
+  id: string;
+  name: string;
+  email: string;
+  sponsor_id: string | null;
+  adhesion_at: string | null;
+  plan_interest: string | null;
+  avatar_url: string | null;
+};
+
+const USER_COLUMNS = `
+  id, name, email, phone, plan_interest, referral_code, sponsor_id,
+  adhesion_at::text AS adhesion_at, plan_monthly_cents,
+  adhesion_value_cents, cashback_pct, is_active,
+  created_at::text AS created_at, career, adhesion_paid, monthly_status
+`;
+
+function safeLimit(value: number, maximum = 500): number {
+  return Math.min(maximum, Math.max(1, Math.trunc(value) || 1));
+}
+
+function safeOffset(value: number): number {
+  return Math.max(0, Math.trunc(value) || 0);
+}
+
+function configNumber(value: string | number | null | undefined): number {
+  const result = Number(value ?? 0);
+  return Number.isFinite(result) ? result : 0;
+}
+
+function adminAvatarUrl(value: string | null, userId: string): string | null {
+  const trusted = trustedAvatarUrl(value);
+  if (!trusted) return null;
+  const encodedUserId = encodeAvatarUserId(userId);
+  if (!encodedUserId) return null;
+  const queryIndex = trusted.indexOf('?');
+  const version = queryIndex >= 0 ? trusted.slice(queryIndex) : '';
+  return `/admin/avatars/${encodedUserId}${version}`;
+}
+
+function omitTotalCount<Row extends { total_count: number }>(
+  record: Row
+): Omit<Row, 'total_count'> {
+  const { total_count, ...row } = record;
+  void total_count;
+  return row;
+}
+
+async function loadCommissionPercentages(client: PoolClient): Promise<number[]> {
+  const result = await client.query<{ key: string; value: string }>(
+    `SELECT key, value
+       FROM public.platform_config
+      WHERE key = ANY($1::text[])`,
+    [
+      [
+        'commission_direct_pct',
+        'commission_level1_pct',
+        'commission_level2_pct',
+        'commission_level3_pct',
+        'commission_level4_pct',
+      ],
+    ]
+  );
+  const values = new Map(result.rows.map(row => [row.key, configNumber(row.value)]));
+  return [
+    values.get('commission_direct_pct') ?? 10,
+    values.get('commission_level1_pct') ?? 2,
+    values.get('commission_level2_pct') ?? 1,
+    values.get('commission_level3_pct') ?? 0.5,
+    values.get('commission_level4_pct') ?? 0,
+  ];
+}
+
+async function recalculateCommissionsWithClient(
+  client: PoolClient,
+  userId: string,
+  newMonthlyCents: number
+): Promise<void> {
+  const percentages = await loadCommissionPercentages(client);
+  const asReferred = await client.query<{
+    id: string;
+    level: number;
+    amount_cents: number;
+  }>(
+    `SELECT id, level, amount_cents
+       FROM public.commission_entries
+      WHERE referred_user_id = $1 AND status = 'available'
+      FOR UPDATE`,
+    [userId]
+  );
+  for (const entry of asReferred.rows) {
+    const amount = Math.floor(newMonthlyCents * ((percentages[entry.level] ?? 0) / 100));
+    if (amount <= 0) {
+      await client.query('DELETE FROM public.commission_entries WHERE id = $1', [entry.id]);
+    } else if (amount !== entry.amount_cents) {
+      await client.query('UPDATE public.commission_entries SET amount_cents = $2 WHERE id = $1', [
+        entry.id,
+        amount,
+      ]);
+    }
+  }
+
+  const asSponsor = await client.query<{
+    id: string;
+    level: number;
+    amount_cents: number;
+    plan_monthly_cents: number | null;
+  }>(
+    `SELECT commission.id,
+            commission.level,
+            commission.amount_cents,
+            referred.plan_monthly_cents
+       FROM public.commission_entries AS commission
+       JOIN public.users AS referred ON referred.id = commission.referred_user_id
+      WHERE commission.sponsor_id = $1
+        AND commission.status = 'available'
+      FOR UPDATE OF commission`,
+    [userId]
+  );
+  for (const entry of asSponsor.rows) {
+    const amount = Math.floor(
+      (entry.plan_monthly_cents ?? 0) * ((percentages[entry.level] ?? 0) / 100)
+    );
+    if (amount <= 0) {
+      await client.query('DELETE FROM public.commission_entries WHERE id = $1', [entry.id]);
+    } else if (amount !== entry.amount_cents) {
+      await client.query('UPDATE public.commission_entries SET amount_cents = $2 WHERE id = $1', [
+        entry.id,
+        amount,
+      ]);
+    }
+  }
+}
 
 export class AdminRepository {
-  // ── Usuários ──────────────────────────────────────────────────────────────
+  async listUsers(
+    search = '',
+    limit = 50,
+    offset = 0
+  ): Promise<{ rows: AdminUserRow[]; total: number }> {
+    const term = search.trim();
+    const filter = term ? `WHERE name ILIKE $1 OR email ILIKE $1 OR referral_code ILIKE $1` : '';
+    const values: unknown[] = term ? [`%${term}%`] : [];
+    const limitIndex = values.push(safeLimit(limit));
+    const offsetIndex = values.push(safeOffset(offset));
 
-  async listUsers(search = '', limit = 50, offset = 0): Promise<{ rows: AdminUserRow[]; total: number }> {
-    let q = supabase
-      .from('users')
-      .select(
-        'id, name, email, phone, plan_interest, referral_code, sponsor_id, adhesion_at, plan_monthly_cents, adhesion_value_cents, cashback_pct, is_active, created_at, career, adhesion_paid, monthly_status',
-        { count: 'exact' }
-      )
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    if (search) {
-      q = q.or(`name.ilike.%${search}%,email.ilike.%${search}%,referral_code.ilike.%${search}%`);
-    }
-
-    const { data, count } = await q;
-    type UserRow = { cashback_pct?: number; [key: string]: unknown };
-    const rows = (data ?? []).map((r: UserRow) => ({
-      ...r,
-      cashback_pct: r.cashback_pct ?? 40,
-    })) as AdminUserRow[];
-    return { rows, total: count ?? 0 };
+    const rows = await query<AdminUserRow & { total_count: number }>(
+      `SELECT ${USER_COLUMNS}, COUNT(*) OVER()::integer AS total_count
+         FROM public.users
+         ${filter}
+        ORDER BY created_at DESC
+        LIMIT $${limitIndex} OFFSET $${offsetIndex}`,
+      values
+    );
+    return {
+      rows: rows.map(record => {
+        const row = omitTotalCount(record);
+        return { ...row, cashback_pct: row.cashback_pct ?? 40 };
+      }),
+      total: rows[0]?.total_count ?? 0,
+    };
   }
 
   async countUsersByPlan(): Promise<{ plan: string; count: number }[]> {
-    const allUsers = await supabase.from('users').select('plan_interest');
-    const map: Record<string, number> = {};
-    for (const u of allUsers.data ?? []) {
-      const key = u.plan_interest ?? 'sem_plano';
-      map[key] = (map[key] ?? 0) + 1;
-    }
-    return Object.entries(map)
-      .map(([plan, count]) => ({ plan, count }))
-      .sort((a, b) => b.count - a.count);
+    return query<{ plan: string; count: number }>(
+      `SELECT COALESCE(plan_interest, 'sem_plano') AS plan,
+              COUNT(*)::integer AS count
+         FROM public.users
+        GROUP BY COALESCE(plan_interest, 'sem_plano')
+        ORDER BY count DESC`
+    );
   }
 
   async countActiveUsers(): Promise<number> {
-    // Usuários ativos = adhesion_paid true E (monthly_status = 'paid' ou sem status de atraso)
-    const { count } = await supabase
-      .from('users')
-      .select('*', { count: 'exact', head: true })
-      .eq('adhesion_paid', true)
-      .neq('monthly_status', 'overdue');
-    return count ?? 0;
+    const row = await queryOne<{ count: number }>(
+      `SELECT COUNT(*)::integer AS count
+         FROM public.users
+        WHERE adhesion_paid = TRUE
+          AND monthly_status IS DISTINCT FROM 'overdue'`
+    );
+    return row?.count ?? 0;
   }
 
   async updateUserPlan(
     userId: string,
-    opts: { plan: string; cashbackPct: number; adhesionValueCents: number | null; monthlyValueCents: number | null }
+    options: {
+      plan: string;
+      cashbackPct: number;
+      adhesionValueCents: number | null;
+      monthlyValueCents: number | null;
+    }
   ): Promise<void> {
-    // 'sem_plano' deve ser armazenado como null no banco
-    const planValue = opts.plan === 'sem_plano' ? null : opts.plan;
-    const { error } = await supabase.from('users').update({
-      plan_interest: planValue,
-      cashback_pct: opts.cashbackPct,
-      plan_monthly_cents: opts.monthlyValueCents,
-      adhesion_value_cents: opts.adhesionValueCents,
-    }).eq('id', userId);
-    if (error) throw new Error(`[updateUserPlan] ${error.message}`);
+    await withTransaction(async client => {
+      const changed = await client.query(
+        `UPDATE public.users
+            SET plan_interest = $2,
+                cashback_pct = $3,
+                plan_monthly_cents = $4,
+                adhesion_value_cents = $5
+          WHERE id = $1`,
+        [
+          userId,
+          options.plan === 'sem_plano' ? null : options.plan,
+          options.cashbackPct,
+          options.monthlyValueCents,
+          options.adhesionValueCents,
+        ]
+      );
+      if ((changed.rowCount ?? 0) !== 1) throw new Error('Usuário não encontrado.');
+      await recalculateCommissionsWithClient(client, userId, options.monthlyValueCents ?? 0);
+    });
   }
 
   async updateUserCareer(userId: string, career: string | null): Promise<void> {
-    await supabase.from('users').update({ career }).eq('id', userId);
+    const changed = await execute('UPDATE public.users SET career = $2 WHERE id = $1', [
+      userId,
+      career,
+    ]);
+    if (changed !== 1) throw new Error('Usuário não encontrado.');
   }
 
   async updateAdhesionPaid(userId: string, paid: boolean): Promise<void> {
-    const { error } = await supabase
-      .from('users')
-      .update({
-        adhesion_paid: paid,
-        // Sincroniza adhesion_at — todo o sistema (cashback, rede, carreira) usa este campo
-        adhesion_at: paid ? new Date().toISOString() : null,
-      })
-      .eq('id', userId);
-    if (error) throw new Error(`[updateAdhesionPaid] ${error.message}`);
+    const changed = await execute(
+      `UPDATE public.users
+          SET adhesion_paid = $2,
+              adhesion_at = CASE WHEN $2 THEN COALESCE(adhesion_at, NOW()) ELSE NULL END
+        WHERE id = $1`,
+      [userId, paid]
+    );
+    if (changed !== 1) throw new Error('Usuário não encontrado.');
   }
 
   async updateMonthlyStatus(userId: string, status: 'paid' | 'overdue' | null): Promise<void> {
-    const { error } = await supabase
-      .from('users')
-      .update({ monthly_status: status })
-      .eq('id', userId);
-    if (error) throw new Error(`[updateMonthlyStatus] ${error.message}`);
+    const changed = await execute('UPDATE public.users SET monthly_status = $2 WHERE id = $1', [
+      userId,
+      status,
+    ]);
+    if (changed !== 1) throw new Error('Usuário não encontrado.');
   }
 
   async getDashboardStats(): Promise<{
@@ -148,251 +341,282 @@ export class AdminRepository {
     paidCommissionsCents: number;
   }> {
     const period = currentPeriod();
-
-    const [
-      { count: activeUsers },
-      { data: commissions },
-      { count: pendingWithdrawals },
-      { count: pendingKyc },
-      { count: networkMembers },
-      { data: volumeData },
-    ] = await Promise.all([
-      // 1. Usuários Ativos (adhesion_paid = true E não estão overdue)
-      supabase.from('users').select('*', { count: 'exact', head: true })
-        .eq('adhesion_paid', true)
-        .neq('monthly_status', 'overdue'),
-      
-      // 2. Comissões Pagas
-      supabase.from('commission_entries').select('amount_cents').eq('status', 'paid'),
-      
-      // 3. Saques Pendentes
-      supabase.from('withdrawal_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-      
-      // 4. PIX a Aprovar
-      supabase.from('plan_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-      
-      // 5. Membros na Rede (usuários que têm um patrocinador)
-      supabase.from('users').select('*', { count: 'exact', head: true }).not('sponsor_id', 'is', null),
-
-      // 6. Volume no Mês Atual
-      supabase.from('payments').select('amount_cents').eq('period', period),
-    ]);
-
-    const paidCommissionsCents = (commissions ?? []).reduce((s: number, r: { amount_cents: number }) => s + (r.amount_cents ?? 0), 0);
-    const volumeMonthCents = (volumeData ?? []).reduce((s: number, r: { amount_cents: number }) => s + (r.amount_cents ?? 0), 0);
-
+    const row = await queryOne<{
+      active_users: number;
+      pending_withdrawals: number;
+      pending_plans: number;
+      network_members: number;
+      volume_month: string;
+      paid_commissions: string;
+    }>(
+      `SELECT
+         (SELECT COUNT(*)::integer FROM public.users
+           WHERE adhesion_paid = TRUE
+             AND monthly_status IS DISTINCT FROM 'overdue') AS active_users,
+         (SELECT COUNT(*)::integer FROM public.withdrawal_requests
+           WHERE status = 'pending') AS pending_withdrawals,
+         (SELECT COUNT(*)::integer FROM public.plan_requests
+           WHERE status = 'pending') AS pending_plans,
+         (SELECT COUNT(*)::integer FROM public.users
+           WHERE sponsor_id IS NOT NULL) AS network_members,
+         (SELECT COALESCE(SUM(amount_cents), 0)::text FROM public.payments
+           WHERE period = $1) AS volume_month,
+         (SELECT COALESCE(SUM(amount_cents), 0)::text FROM public.commission_entries
+           WHERE status = 'paid') AS paid_commissions`,
+      [period]
+    );
     return {
-      activeUsersCount: activeUsers ?? 0,
-      pendingWithdrawalsCount: pendingWithdrawals ?? 0,
-      pendingPixAprovarCount: pendingKyc ?? 0,
-      volumeMonthCents,
-      networkMembersCount: networkMembers ?? 0,
-      paidCommissionsCents,
+      activeUsersCount: row?.active_users ?? 0,
+      pendingWithdrawalsCount: row?.pending_withdrawals ?? 0,
+      pendingPixAprovarCount: row?.pending_plans ?? 0,
+      volumeMonthCents: postgresIntegerToSafeNumber(row?.volume_month, 'monthly revenue'),
+      networkMembersCount: row?.network_members ?? 0,
+      paidCommissionsCents: postgresIntegerToSafeNumber(
+        row?.paid_commissions,
+        'paid commission total'
+      ),
     };
   }
 
-  // ── Comissões ─────────────────────────────────────────────────────────────
-
   async listCommissions(limit = 50, offset = 0): Promise<{ rows: CommissionRow[]; total: number }> {
-    const { data, count } = await supabase
-      .from('commission_entries')
-      .select('*, sponsor:users!sponsor_id(name), referred:users!referred_user_id(name)', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    type CommEntry = { sponsor?: { name: string }; referred?: { name: string }; [key: string]: unknown };
-    const rows = (data ?? []).map((r: CommEntry) => ({
-      ...r,
-      sponsor_name: r.sponsor?.name ?? '',
-      referred_name: r.referred?.name ?? '',
-    })) as CommissionRow[];
-    return { rows, total: count ?? 0 };
+    return this.listCommissionsFiltered('all', limit, offset);
   }
-
-  // ── Pagamentos ─────────────────────────────────────────────────────────────
 
   async listPayments(limit = 50, offset = 0): Promise<{ rows: PaymentRow[]; total: number }> {
-    const { data, count } = await supabase
-      .from('payments')
-      .select('*, users(name)', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    type PayEntry = { users?: { name: string }; [key: string]: unknown };
-    const rows = (data ?? []).map((r: PayEntry) => ({
-      ...r,
-      user_name: r.users?.name ?? '',
-    })) as PaymentRow[];
-    return { rows, total: count ?? 0 };
+    const rows = await query<PaymentRow & { total_count: number }>(
+      `SELECT payment.id,
+              payment.user_id,
+              COALESCE(app_user.name, '') AS user_name,
+              payment.amount_cents,
+              payment.period,
+              payment.paid_at::text AS paid_at,
+              COUNT(*) OVER()::integer AS total_count
+         FROM public.payments AS payment
+         JOIN public.users AS app_user ON app_user.id = payment.user_id
+        ORDER BY payment.created_at DESC
+        LIMIT $1 OFFSET $2`,
+      [safeLimit(limit), safeOffset(offset)]
+    );
+    return {
+      rows: rows.map(omitTotalCount),
+      total: rows[0]?.total_count ?? 0,
+    };
   }
-
-  // ── Saques ─────────────────────────────────────────────────────────────────
 
   async listWithdrawals(
     status: 'pending' | 'approved' | 'rejected' | 'all' = 'all',
     limit = 50,
     offset = 0
   ): Promise<{ rows: WithdrawalRequestRow[]; total: number }> {
-    let q = supabase
-      .from('withdrawal_requests')
-      .select('*, users(name, email)', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    if (status !== 'all') q = q.eq('status', status);
-
-    const { data, count } = await q;
-    type WithdrawEntry = { users?: { name: string; email: string }; pix_key_type?: string; requested_at?: string; created_at: string; [key: string]: unknown };
-    const rows = (data ?? []).map((r: WithdrawEntry) => ({
-      ...r,
-      user_name: r.users?.name ?? '',
-      user_email: r.users?.email ?? '',
-      pix_key_type: r.pix_key_type ?? 'cpf',
-      requested_at: r.requested_at ?? r.created_at,
-    })) as WithdrawalRequestRow[];
-    return { rows, total: count ?? 0 };
+    const filtered = status !== 'all';
+    const rows = await query<WithdrawalRequestRow & { total_count: number }>(
+      `SELECT withdrawal.id,
+              withdrawal.user_id,
+              app_user.name AS user_name,
+              app_user.email AS user_email,
+              withdrawal.amount_cents,
+              withdrawal.pix_key,
+              withdrawal.pix_key_type,
+              withdrawal.status,
+              withdrawal.reviewed_by,
+              withdrawal.reviewed_at::text AS reviewed_at,
+              withdrawal.review_note,
+              withdrawal.created_at::text AS created_at,
+              withdrawal.requested_at::text AS requested_at,
+              COUNT(*) OVER()::integer AS total_count
+         FROM public.withdrawal_requests AS withdrawal
+         JOIN public.users AS app_user ON app_user.id = withdrawal.user_id
+        WHERE ($1::boolean = FALSE OR withdrawal.status = $2)
+        ORDER BY withdrawal.created_at DESC
+        LIMIT $3 OFFSET $4`,
+      [filtered, filtered ? status : null, safeLimit(limit), safeOffset(offset)]
+    );
+    return {
+      rows: rows.map(omitTotalCount),
+      total: rows[0]?.total_count ?? 0,
+    };
   }
 
   async approveWithdrawal(id: string, processedBy: string): Promise<void> {
-    await supabase.from('withdrawal_requests').update({
-      status: 'approved', reviewed_by: processedBy, reviewed_at: new Date().toISOString(),
-    }).eq('id', id);
+    await this.updateWithdrawalStatus(id, 'approved', processedBy);
   }
 
   async rejectWithdrawal(id: string, processedBy: string, note: string): Promise<void> {
-    await supabase.from('withdrawal_requests').update({
-      status: 'rejected', reviewed_by: processedBy, reviewed_at: new Date().toISOString(), review_note: note,
-    }).eq('id', id);
+    await this.updateWithdrawalStatus(id, 'rejected', processedBy, note);
   }
-
-  // ── Rede / árvore MLM ─────────────────────────────────────────────────────
 
   async getFullNetworkTree(rootId: string | null): Promise<AdminNetworkNode[]> {
-    const { data: allUsers } = await supabase
-      .from('users')
-      .select('id, name, email, sponsor_id, adhesion_at, plan_interest, avatar_url');
-
-    if (!allUsers) return [];
-
-    type RawUser = { id: string; name: string; email: string; sponsor_id: string | null; adhesion_at: string | null; plan_interest: string | null; avatar_url: string | null };
-    const rawMap = new Map<string, RawUser>();
-    for (const u of allUsers as RawUser[]) rawMap.set(u.id, u);
-
+    const users = await query<RawNetworkUser>(
+      `SELECT id,
+              name,
+              email,
+              sponsor_id,
+              adhesion_at::text AS adhesion_at,
+              plan_interest,
+              avatar_url
+         FROM public.users
+        ORDER BY created_at ASC`
+    );
+    const userMap = new Map(users.map(user => [user.id, user]));
     const childrenMap = new Map<string, string[]>();
-    for (const u of allUsers as RawUser[]) {
-      if (u.sponsor_id) {
-        const arr = childrenMap.get(u.sponsor_id) ?? [];
-        arr.push(u.id);
-        childrenMap.set(u.sponsor_id, arr);
-      }
+    for (const user of users) {
+      if (!user.sponsor_id) continue;
+      const children = childrenMap.get(user.sponsor_id) ?? [];
+      children.push(user.id);
+      childrenMap.set(user.sponsor_id, children);
     }
 
-    const BASE_SIZE = 5;
-    function buildNode(id: string, globalLevel: number, levelInBase: number, isNewBase: boolean): AdminNetworkNode {
-      const raw = rawMap.get(id)!;
-      const childIds = childrenMap.get(id) ?? [];
-      const children: AdminNetworkNode[] = childIds.map((cid) => {
-        const childIsNewBase = levelInBase >= BASE_SIZE;
-        return buildNode(cid, globalLevel + 1, childIsNewBase ? 1 : levelInBase + 1, childIsNewBase);
-      });
-      return { id, name: raw.name, email: raw.email, sponsor_id: raw.sponsor_id, adhesion_at: raw.adhesion_at, plan_interest: raw.plan_interest, avatar_url: raw.avatar_url, globalLevel, levelInBase, isNewBase, children };
-    }
+    const buildNode = (
+      id: string,
+      globalLevel: number,
+      levelInBase: number,
+      isNewBase: boolean,
+      ancestors: ReadonlySet<string>
+    ): AdminNetworkNode => {
+      const raw = userMap.get(id);
+      if (!raw) throw new Error(`Usuário da rede não encontrado: ${id}`);
+      const nextAncestors = new Set(ancestors);
+      nextAncestors.add(id);
+      const children = (childrenMap.get(id) ?? [])
+        .filter(childId => !nextAncestors.has(childId))
+        .map(childId => {
+          const childStartsBase = levelInBase >= 5;
+          return buildNode(
+            childId,
+            globalLevel + 1,
+            childStartsBase ? 1 : levelInBase + 1,
+            childStartsBase,
+            nextAncestors
+          );
+        });
+      return {
+        ...raw,
+        avatar_url: adminAvatarUrl(raw.avatar_url, raw.id),
+        globalLevel,
+        levelInBase,
+        isNewBase,
+        children,
+      };
+    };
 
     if (rootId) {
-      const raw = rawMap.get(rootId);
-      if (!raw) return [];
-      return [buildNode(rootId, 0, 0, false)];
+      return userMap.has(rootId) ? [buildNode(rootId, 0, 0, false, new Set())] : [];
     }
-
-    const rootIds = (allUsers as RawUser[])
-      .filter((u) => !u.sponsor_id || !rawMap.has(u.sponsor_id))
-      .map((u) => u.id);
-    return rootIds.map((id) => buildNode(id, 0, 0, false));
+    const rootIds = users
+      .filter(user => !user.sponsor_id || !userMap.has(user.sponsor_id))
+      .map(user => user.id);
+    return rootIds.map(id => buildNode(id, 0, 0, false, new Set()));
   }
 
-  async getTopSponsors30d(limit = 10): Promise<{
-    id: string; name: string; referrals30d: number; referralsPrev: number;
-    totalReferrals: number; activeReferrals: number; conversionPct: number; delta: number;
-  }[]> {
-    const now = new Date();
-    const cutoff30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const cutoff60 = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000).toISOString();
-
-    const { data: allUsers } = await supabase.from('users').select('id, name, sponsor_id, created_at, adhesion_at');
-    if (!allUsers) return [];
-
-    type URow = { id: string; name: string; sponsor_id: string | null; created_at: string; adhesion_at: string | null };
-    const sponsorMap = new Map<string, { name: string; referrals: URow[] }>();
-    for (const u of allUsers as URow[]) {
-      if (!u.sponsor_id) continue;
-      if (!sponsorMap.has(u.sponsor_id)) {
-        const sponsor = (allUsers as URow[]).find((x) => x.id === u.sponsor_id);
-        if (!sponsor) continue;
-        sponsorMap.set(u.sponsor_id, { name: sponsor.name, referrals: [] });
-      }
-      sponsorMap.get(u.sponsor_id)!.referrals.push(u);
-    }
-
-    const result = [];
-    for (const [id, { name, referrals }] of sponsorMap.entries()) {
-      const referrals30d = referrals.filter((r) => r.created_at >= cutoff30).length;
-      if (!referrals30d) continue;
-      const referralsPrev = referrals.filter((r) => r.created_at >= cutoff60 && r.created_at < cutoff30).length;
-      const activeReferrals = referrals.filter((r) => r.adhesion_at).length;
-      result.push({
-        id, name, referrals30d, referralsPrev,
-        totalReferrals: referrals.length, activeReferrals,
-        conversionPct: referrals.length > 0 ? Math.round((activeReferrals / referrals.length) * 100) : 0,
-        delta: referrals30d - referralsPrev,
-      });
-    }
-
-    return result.sort((a, b) => b.referrals30d - a.referrals30d).slice(0, limit);
+  async getTopSponsors30d(limit = 10): Promise<
+    {
+      id: string;
+      name: string;
+      referrals30d: number;
+      referralsPrev: number;
+      totalReferrals: number;
+      activeReferrals: number;
+      conversionPct: number;
+      delta: number;
+    }[]
+  > {
+    const now = Date.now();
+    const cutoff30 = new Date(now - 30 * 86_400_000);
+    const cutoff60 = new Date(now - 60 * 86_400_000);
+    const rows = await query<{
+      id: string;
+      name: string;
+      referrals_30d: number;
+      referrals_prev: number;
+      total_referrals: number;
+      active_referrals: number;
+    }>(
+      `SELECT sponsor.id,
+              sponsor.name,
+              COUNT(referred.id) FILTER (
+                WHERE referred.created_at >= $1
+              )::integer AS referrals_30d,
+              COUNT(referred.id) FILTER (
+                WHERE referred.created_at >= $2 AND referred.created_at < $1
+              )::integer AS referrals_prev,
+              COUNT(referred.id)::integer AS total_referrals,
+              COUNT(referred.id) FILTER (
+                WHERE referred.adhesion_at IS NOT NULL OR referred.adhesion_paid = TRUE
+              )::integer AS active_referrals
+         FROM public.users AS sponsor
+         JOIN public.users AS referred ON referred.sponsor_id = sponsor.id
+        GROUP BY sponsor.id, sponsor.name
+       HAVING COUNT(referred.id) FILTER (WHERE referred.created_at >= $1) > 0
+        ORDER BY referrals_30d DESC, sponsor.name ASC
+        LIMIT $3`,
+      [cutoff30, cutoff60, safeLimit(limit, 100)]
+    );
+    return rows.map(row => ({
+      id: row.id,
+      name: row.name,
+      referrals30d: row.referrals_30d,
+      referralsPrev: row.referrals_prev,
+      totalReferrals: row.total_referrals,
+      activeReferrals: row.active_referrals,
+      conversionPct:
+        row.total_referrals > 0
+          ? Math.round((row.active_referrals / row.total_referrals) * 100)
+          : 0,
+      delta: row.referrals_30d - row.referrals_prev,
+    }));
   }
-  // ── Cashback ──────────────────────────────────────────────────────────────
 
   async listCashback(limit = 50, offset = 0): Promise<{ rows: AdminUserRow[]; total: number }> {
-    // Busca usuários com adesão — tanto por adhesion_at quanto por adhesion_paid
-    const { data, count } = await supabase
-      .from('users')
-      .select('id, name, email, plan_interest, referral_code, sponsor_id, adhesion_at, plan_monthly_cents, adhesion_value_cents, cashback_pct, created_at, adhesion_paid', { count: 'exact' })
-      .not('plan_monthly_cents', 'is', null)
-      .or('adhesion_at.not.is.null,adhesion_paid.eq.true')
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    type CbRow = { plan_monthly_cents?: number; cashback_pct?: number | null; [key: string]: unknown };
-    const rows = (data ?? []).map((r: CbRow) => ({
-      ...r,
-      // Prioriza cashback_pct definido pelo admin; fallback: calc automático
-      cashback_pct: r.cashback_pct ?? ((r.plan_monthly_cents ?? 0) >= 1_000_000 ? 50 : 40),
-    })) as AdminUserRow[];
-    return { rows, total: count ?? 0 };
+    const rows = await query<AdminUserRow & { total_count: number }>(
+      `SELECT ${USER_COLUMNS}, COUNT(*) OVER()::integer AS total_count
+         FROM public.users
+        WHERE plan_monthly_cents IS NOT NULL
+          AND (adhesion_at IS NOT NULL OR adhesion_paid = TRUE)
+        ORDER BY created_at DESC
+        LIMIT $1 OFFSET $2`,
+      [safeLimit(limit), safeOffset(offset)]
+    );
+    return {
+      rows: rows.map(record => {
+        const row = omitTotalCount(record);
+        return {
+          ...row,
+          cashback_pct: row.cashback_pct ?? ((row.plan_monthly_cents ?? 0) >= 1_000_000 ? 50 : 40),
+        };
+      }),
+      total: rows[0]?.total_count ?? 0,
+    };
   }
 
-  // ── Cashback Payments (mes a mes) ─────────────────────────────────────────
-
   async getCashbackPayments(userId: string): Promise<CashbackPaymentRow[]> {
-    const { data } = await supabase
-      .from('cashback_payments')
-      .select('*')
-      .eq('user_id', userId)
-      .order('month_number', { ascending: true });
-    return (data ?? []) as CashbackPaymentRow[];
+    return query<CashbackPaymentRow>(
+      `SELECT id,
+              user_id,
+              month_number,
+              amount_cents,
+              paid_at::text AS paid_at,
+              paid_by
+         FROM public.cashback_payments
+        WHERE user_id = $1
+        ORDER BY month_number ASC`,
+      [userId]
+    );
   }
 
   async getCashbackPaymentsBulk(userIds: string[]): Promise<Record<string, number[]>> {
     if (userIds.length === 0) return {};
-    const { data } = await supabase
-      .from('cashback_payments')
-      .select('user_id, month_number')
-      .in('user_id', userIds);
-    const map: Record<string, number[]> = {};
-    for (const r of (data ?? []) as { user_id: string; month_number: number }[]) {
-      if (!map[r.user_id]) map[r.user_id] = [];
-      map[r.user_id].push(r.month_number);
+    const rows = await query<{ user_id: string; month_number: number }>(
+      `SELECT user_id, month_number
+         FROM public.cashback_payments
+        WHERE user_id = ANY($1::text[])
+        ORDER BY user_id, month_number`,
+      [userIds]
+    );
+    const result: Record<string, number[]> = {};
+    for (const row of rows) {
+      (result[row.user_id] ??= []).push(row.month_number);
     }
-    return map;
+    return result;
   }
 
   async markCashbackMonthPaid(
@@ -401,305 +625,220 @@ export class AdminRepository {
     amountCents: number,
     paidBy: string
   ): Promise<void> {
-    const { randomUUID } = await import('node:crypto');
+    await withTransaction(async client => {
+      const userResult = await client.query<{
+        sponsor_id: string | null;
+        plan_monthly_cents: number | null;
+      }>(
+        `SELECT sponsor_id, plan_monthly_cents
+           FROM public.users
+          WHERE id = $1
+          FOR SHARE`,
+        [userId]
+      );
+      const user = userResult.rows[0];
+      if (!user) throw new Error('Usuário não encontrado.');
 
-    // 1. Registra o pagamento de cashback
-    const { error } = await supabase.from('cashback_payments').upsert({
-      id: randomUUID(),
-      user_id: userId,
-      month_number: monthNumber,
-      amount_cents: amountCents,
-      paid_at: new Date().toISOString(),
-      paid_by: paidBy,
-    }, { onConflict: 'user_id,month_number' });
-    if (error) throw new Error(`[markCashbackMonthPaid] ${error.message}`);
+      await client.query(
+        `INSERT INTO public.cashback_payments
+           (id, user_id, month_number, amount_cents, paid_at, paid_by)
+         VALUES ($1, $2, $3, $4, NOW(), $5)
+         ON CONFLICT (user_id, month_number) DO UPDATE
+           SET amount_cents = EXCLUDED.amount_cents,
+               paid_at = EXCLUDED.paid_at,
+               paid_by = EXCLUDED.paid_by`,
+        [randomUUID(), userId, monthNumber, amountCents, paidBy]
+      );
 
-    // 2. Gera comissões para a cadeia de sponsors
-    const { data: userRow } = await supabase
-      .from('users')
-      .select('sponsor_id, plan_monthly_cents')
-      .eq('id', userId)
-      .maybeSingle();
+      if (!user.sponsor_id || !user.plan_monthly_cents) return;
+      const percentages = await loadCommissionPercentages(client);
+      const period = `cashback-m${monthNumber}`;
+      const unlockByCareer: Record<string, number> = {
+        vendedor_elite: 1,
+        supervisor: 2,
+        gestor: 3,
+        gerente_senior: 4,
+        diretor_geral: 5,
+      };
 
-    if (!userRow?.sponsor_id || !userRow.plan_monthly_cents) return;
+      let currentUserId = userId;
+      for (let level = 0; level <= 4; level += 1) {
+        const parentResult = await client.query<{
+          sponsor_id: string | null;
+          sponsor_career: string | null;
+        }>(
+          `SELECT child.sponsor_id,
+                  sponsor.career AS sponsor_career
+             FROM public.users AS child
+             LEFT JOIN public.users AS sponsor ON sponsor.id = child.sponsor_id
+            WHERE child.id = $1`,
+          [currentUserId]
+        );
+        const parent = parentResult.rows[0];
+        const sponsorId = parent?.sponsor_id;
+        if (!sponsorId) break;
 
-    const planMonthly = userRow.plan_monthly_cents;
-    const period = `cashback-m${monthNumber}`;
-    const now = new Date().toISOString();
-
-    /**
-     * Mapa de níveis desbloqueados por carreira:
-     * vendedor_elite: 1 (só direto N1)
-     * supervisor:     2 (N1 + N2)
-     * gestor:         3 (N1 + N2 + N3)
-     * gerente_senior: 4 (N1 + N2 + N3 + N4)
-     * diretor_geral:  5 (N1 + N2 + N3 + N4 + N5) — destrava TUDO
-     */
-    const UNLOCK: Record<string, number> = {
-      vendedor_elite: 1,
-      supervisor: 2,
-      gestor: 3,
-      gerente_senior: 4,
-      diretor_geral: 5,
-    };
-
-    // Percorre a cadeia: nível 0 = direto, nível 1-4 = rede
-    // Percentuais lidos da configuração do admin
-    const commCfg = await configRepository.getCommissionConfig();
-    const levelPcts = [
-      commCfg.direct_pct / 100,  // N0: direto (ex: 10% → 0.10)
-      commCfg.level1_pct / 100,  // N1
-      commCfg.level2_pct / 100,  // N2
-      commCfg.level3_pct / 100,  // N3
-      commCfg.level4_pct / 100,  // N4
-    ];
-
-    let currentUserId = userId;
-    for (let level = 0; level <= 4; level++) {
-      const { data: parent } = await supabase
-        .from('users')
-        .select('sponsor_id')
-        .eq('id', currentUserId)
-        .maybeSingle();
-
-      const sponsorId = parent?.sponsor_id;
-      if (!sponsorId) break;
-
-      // Nível 0 (direto): sempre gera 10% para o sponsor direto
-      // Nível 1+ (rede): só gera se o sponsor tem carreira que desbloqueia esse nível
-      if (level > 0) {
-        // Busca carreira do sponsor (manual do admin tem prioridade)
-        const { data: sponsorRow } = await supabase
-          .from('users')
-          .select('career')
-          .eq('id', sponsorId)
-          .maybeSingle();
-
-        const career = sponsorRow?.career as string | null;
-        // Nível de rede requerido: level 1 precisa de unlock >= 2, level 2 >= 3, etc.
-        const requiredUnlock = level + 1;
-        const sponsorUnlock = career ? (UNLOCK[career] ?? 1) : 1;
-
-        if (sponsorUnlock < requiredUnlock) {
-          // Sponsor não tem carreira suficiente — pula mas continua subindo
-          currentUserId = sponsorId;
-          continue;
+        if (level > 0) {
+          const unlock = parent.sponsor_career ? (unlockByCareer[parent.sponsor_career] ?? 1) : 1;
+          if (unlock < level + 1) {
+            currentUserId = sponsorId;
+            continue;
+          }
         }
+
+        const commissionCents = Math.floor(
+          user.plan_monthly_cents * ((percentages[level] ?? 0) / 100)
+        );
+        if (commissionCents <= 0) break;
+        await client.query(
+          `INSERT INTO public.commission_entries
+             (id, sponsor_id, referred_user_id, type, level,
+              amount_cents, period, status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 'available')
+           ON CONFLICT (sponsor_id, referred_user_id, period, level)
+           DO NOTHING`,
+          [
+            randomUUID(),
+            sponsorId,
+            userId,
+            level === 0 ? 'direct' : 'network',
+            level,
+            commissionCents,
+            period,
+          ]
+        );
+        currentUserId = sponsorId;
       }
-
-      const pct = levelPcts[level] ?? 0;
-      const commissionCents = Math.floor(planMonthly * pct);
-      if (commissionCents <= 0) break;
-
-      // Evita duplicata
-      const { count: existing } = await supabase
-        .from('commission_entries')
-        .select('*', { count: 'exact', head: true })
-        .eq('sponsor_id', sponsorId)
-        .eq('referred_user_id', userId)
-        .eq('period', period)
-        .eq('level', level);
-
-      if ((existing ?? 0) === 0) {
-        await supabase.from('commission_entries').insert({
-          id: randomUUID(),
-          sponsor_id: sponsorId,
-          referred_user_id: userId,
-          type: level === 0 ? 'direct' : 'network',
-          level,
-          amount_cents: commissionCents,
-          period,
-          status: 'available',
-          created_at: now,
-        });
-      }
-
-      currentUserId = sponsorId;
-    }
+    });
   }
 
   async unmarkCashbackMonthPaid(userId: string, monthNumber: number): Promise<void> {
-    const { error } = await supabase
-      .from('cashback_payments')
-      .delete()
-      .eq('user_id', userId)
-      .eq('month_number', monthNumber);
-    if (error) throw new Error(`[unmarkCashbackMonthPaid] ${error.message}`);
+    await withTransaction(async client => {
+      const period = `cashback-m${monthNumber}`;
+      const commissions = await client.query<{ status: string }>(
+        `SELECT status
+           FROM public.commission_entries
+          WHERE referred_user_id = $1
+            AND period = $2
+          FOR UPDATE`,
+        [userId, period]
+      );
+      if (commissions.rows.some(commission => commission.status !== 'available')) {
+        throw new Error('Não é possível desfazer um cashback com comissões já finalizadas.');
+      }
 
-    // Remove comissões geradas para este período
-    const period = `cashback-m${monthNumber}`;
-    await supabase
-      .from('commission_entries')
-      .delete()
-      .eq('referred_user_id', userId)
-      .eq('period', period);
+      const deleted = await client.query(
+        `DELETE FROM public.cashback_payments
+          WHERE user_id = $1 AND month_number = $2`,
+        [userId, monthNumber]
+      );
+      if ((deleted.rowCount ?? 0) !== 1) {
+        throw new Error('Pagamento de cashback não encontrado.');
+      }
+      await client.query(
+        `DELETE FROM public.commission_entries
+          WHERE referred_user_id = $1
+            AND period = $2`,
+        [userId, period]
+      );
+    });
   }
 
-  /**
-   * Recalcula comissões NÃO PAGAS de um usuário baseado no novo plan_monthly_cents.
-   * Comissões já pagas (status = 'paid') são preservadas intactas.
-   *
-   * Recalcula em AMBAS as direções:
-   * 1. referred_user_id = userId → comissões que os UPLINES deste usuário ganham
-   * 2. sponsor_id = userId → comissões que ESTE USUÁRIO ganha dos seus indicados
-   *    (quando o indicado tem valores atualizados)
-   */
   async recalculateUserCommissions(userId: string, newMonthlyCents: number): Promise<void> {
-    console.log(`[recalculateUserCommissions] userId=${userId}, newMonthlyCents=${newMonthlyCents}`);
-
-    // ── 1. Comissões onde este usuário é o REFERIDO (uplines ganham dele) ──
-    const { data: asReferred, error: errRef } = await supabase
-      .from('commission_entries')
-      .select('id, level, amount_cents, status')
-      .eq('referred_user_id', userId)
-      .neq('status', 'paid');
-
-    console.log(`[recalculateUserCommissions] as referred: ${asReferred?.length ?? 0} entries, error: ${errRef?.message ?? 'none'}`);
-
-    if (asReferred && asReferred.length > 0) {
-      const commCfg = await configRepository.getCommissionConfig();
-      const levelPcts = [
-        commCfg.direct_pct / 100,
-        commCfg.level1_pct / 100,
-        commCfg.level2_pct / 100,
-        commCfg.level3_pct / 100,
-        commCfg.level4_pct / 100,
-      ];
-
-      for (const entry of asReferred as { id: string; level: number; amount_cents: number; status: string }[]) {
-        const pct = levelPcts[entry.level] ?? 0;
-        const newAmountCents = Math.floor(newMonthlyCents * pct);
-        console.log(`[recalculateUserCommissions] entry ${entry.id}: level=${entry.level}, old=${entry.amount_cents}, new=${newAmountCents}, status=${entry.status}`);
-        if (newAmountCents <= 0) {
-          await supabase.from('commission_entries').delete().eq('id', entry.id);
-        } else if (newAmountCents !== entry.amount_cents) {
-          await supabase
-            .from('commission_entries')
-            .update({ amount_cents: newAmountCents })
-            .eq('id', entry.id);
-        }
-      }
-    }
-
-    // ── 2. Comissões onde este usuário é o SPONSOR (ele ganha dos indicados) ──
-    // Para cada indicado direto deste sponsor, busca o plan_monthly_cents atualizado
-    // e recalcula as comissões diretas não pagas
-    const { data: asSponsor, error: errSp } = await supabase
-      .from('commission_entries')
-      .select('id, level, amount_cents, referred_user_id, status')
-      .eq('sponsor_id', userId)
-      .neq('status', 'paid');
-
-    console.log(`[recalculateUserCommissions] as sponsor: ${asSponsor?.length ?? 0} entries, error: ${errSp?.message ?? 'none'}`);
-
-    if (asSponsor && asSponsor.length > 0) {
-      // Busca plan_monthly_cents de cada referido único
-      const referredIds = [...new Set(asSponsor.map((e) => (e as { referred_user_id: string }).referred_user_id))];
-      const { data: referredUsers } = await supabase
-        .from('users')
-        .select('id, plan_monthly_cents')
-        .in('id', referredIds);
-
-      const monthlyMap: Record<string, number> = {};
-      for (const u of (referredUsers ?? []) as { id: string; plan_monthly_cents: number | null }[]) {
-        monthlyMap[u.id] = u.plan_monthly_cents ?? 0;
-      }
-
-      const commCfg = await configRepository.getCommissionConfig();
-      const levelPcts = [
-        commCfg.direct_pct / 100,
-        commCfg.level1_pct / 100,
-        commCfg.level2_pct / 100,
-        commCfg.level3_pct / 100,
-        commCfg.level4_pct / 100,
-      ];
-
-      for (const entry of asSponsor as { id: string; level: number; amount_cents: number; referred_user_id: string; status: string }[]) {
-        const referredMonthly = monthlyMap[entry.referred_user_id] ?? 0;
-        const pct = levelPcts[entry.level] ?? 0;
-        const newAmountCents = Math.floor(referredMonthly * pct);
-        console.log(`[recalculateUserCommissions] sponsor entry ${entry.id}: referred=${entry.referred_user_id}, monthly=${referredMonthly}, level=${entry.level}, old=${entry.amount_cents}, new=${newAmountCents}`);
-        if (newAmountCents <= 0) {
-          await supabase.from('commission_entries').delete().eq('id', entry.id);
-        } else if (newAmountCents !== entry.amount_cents) {
-          await supabase
-            .from('commission_entries')
-            .update({ amount_cents: newAmountCents })
-            .eq('id', entry.id);
-        }
-      }
-    }
-
-    console.log(`[recalculateUserCommissions] done for userId=${userId}`);
+    await withTransaction(async client => {
+      await recalculateCommissionsWithClient(client, userId, newMonthlyCents);
+    });
   }
-
-  // ── Financeiro / Extrato ──────────────────────────────────────────────────
 
   async totalRevenueCents(): Promise<number> {
-    const { data } = await supabase.from('payments').select('amount_cents');
-    return (data ?? []).reduce((s: number, r: { amount_cents: number }) => s + (r.amount_cents ?? 0), 0);
+    const row = await queryOne<{ total: string }>(
+      'SELECT COALESCE(SUM(amount_cents), 0)::text AS total FROM public.payments'
+    );
+    return postgresIntegerToSafeNumber(row?.total, 'revenue total');
   }
 
   async paymentStatsByPeriod(): Promise<{ period: string; total: number; count: number }[]> {
-    const { data } = await supabase.from('payments').select('period, amount_cents').order('period', { ascending: false });
-    const map: Record<string, { total: number; count: number }> = {};
-    type PeriodRow = { period: string; amount_cents: number };
-    for (const r of (data ?? []) as PeriodRow[]) {
-      if (!map[r.period]) map[r.period] = { total: 0, count: 0 };
-      map[r.period].total += r.amount_cents ?? 0;
-      map[r.period].count += 1;
-    }
-    return Object.entries(map).map(([period, v]) => ({ period, ...v }));
+    const rows = await query<{ period: string; total: string; count: number }>(
+      `SELECT period,
+              COALESCE(SUM(amount_cents), 0)::text AS total,
+              COUNT(*)::integer AS count
+         FROM public.payments
+        GROUP BY period
+        ORDER BY period DESC`
+    );
+    return rows.map(row => ({
+      ...row,
+      total: postgresIntegerToSafeNumber(row.total, `payment total for ${row.period}`),
+    }));
   }
 
   async totalCommissionsCents(): Promise<number> {
-    const { data } = await supabase.from('commission_entries').select('amount_cents');
-    return (data ?? []).reduce((s: number, r: { amount_cents: number }) => s + (r.amount_cents ?? 0), 0);
+    const row = await queryOne<{ total: string }>(
+      `SELECT COALESCE(SUM(amount_cents), 0)::text AS total
+         FROM public.commission_entries`
+    );
+    return postgresIntegerToSafeNumber(row?.total, 'commission total');
   }
 
   async commissionsByType(): Promise<{ type: string; total: number; count: number }[]> {
-    const { data } = await supabase.from('commission_entries').select('type, amount_cents');
-    const map: Record<string, { total: number; count: number }> = {};
-    type TypeRow = { type: string; amount_cents: number };
-    for (const r of (data ?? []) as TypeRow[]) {
-      if (!map[r.type]) map[r.type] = { total: 0, count: 0 };
-      map[r.type].total += r.amount_cents ?? 0;
-      map[r.type].count += 1;
-    }
-    return Object.entries(map).map(([type, v]) => ({ type, ...v }));
+    const rows = await query<{ type: string; total: string; count: number }>(
+      `SELECT type,
+              COALESCE(SUM(amount_cents), 0)::text AS total,
+              COUNT(*)::integer AS count
+         FROM public.commission_entries
+        GROUP BY type
+        ORDER BY type`
+    );
+    return rows.map(row => ({
+      ...row,
+      total: postgresIntegerToSafeNumber(row.total, `commission total for ${row.type}`),
+    }));
   }
 
-  // ── Rede / Stats ───────────────────────────────────────────────────────────
-
   async getNetworkStats(): Promise<{
-    totalNodes: number; totalBases: number; avgDepth: number; maxDepth: number;
-    totalUsers: number; withSponsor: number; withAdhesion: number;
+    totalNodes: number;
+    totalBases: number;
+    avgDepth: number;
+    maxDepth: number;
+    totalUsers: number;
+    withSponsor: number;
+    withAdhesion: number;
   }> {
-    const { count: totalUsers } = await supabase.from('users').select('*', { count: 'exact', head: true });
-    const { data: withSponsorData } = await supabase.from('users').select('sponsor_id').not('sponsor_id', 'is', null);
-    // "Com Adesão" = adhesion_paid true OU adhesion_at preenchido (retrocompatibilidade)
-    const { count: withAdhesionCount } = await supabase
-      .from('users')
-      .select('*', { count: 'exact', head: true })
-      .eq('adhesion_paid', true);
-    const uniqueSponsors = new Set((withSponsorData ?? []).map((r: { sponsor_id: string }) => r.sponsor_id)).size;
+    const row = await queryOne<{
+      total_users: number;
+      with_sponsor: number;
+      total_bases: number;
+      with_adhesion: number;
+    }>(
+      `SELECT COUNT(*)::integer AS total_users,
+              COUNT(*) FILTER (WHERE sponsor_id IS NOT NULL)::integer AS with_sponsor,
+              COUNT(DISTINCT sponsor_id) FILTER (
+                WHERE sponsor_id IS NOT NULL
+              )::integer AS total_bases,
+              COUNT(*) FILTER (
+                WHERE adhesion_paid = TRUE OR adhesion_at IS NOT NULL
+              )::integer AS with_adhesion
+         FROM public.users`
+    );
     return {
-      totalNodes: totalUsers ?? 0,
-      totalBases: uniqueSponsors,
+      totalNodes: row?.total_users ?? 0,
+      totalBases: row?.total_bases ?? 0,
       avgDepth: 0,
       maxDepth: 0,
-      totalUsers: totalUsers ?? 0,
-      withSponsor: (withSponsorData ?? []).length,
-      withAdhesion: withAdhesionCount ?? 0,
+      totalUsers: row?.total_users ?? 0,
+      withSponsor: row?.with_sponsor ?? 0,
+      withAdhesion: row?.with_adhesion ?? 0,
     };
   }
 
   async countNetworkBases(): Promise<number> {
-    const { data } = await supabase.from('users').select('sponsor_id').not('sponsor_id', 'is', null);
-    return new Set((data ?? []).map((r: { sponsor_id: string }) => r.sponsor_id)).size;
+    const row = await queryOne<{ count: number }>(
+      `SELECT COUNT(DISTINCT sponsor_id)::integer AS count
+         FROM public.users
+        WHERE sponsor_id IS NOT NULL`
+    );
+    return row?.count ?? 0;
   }
-
-  // ── Saques (alias) ────────────────────────────────────────────────────────
 
   async updateWithdrawalStatus(
     id: string,
@@ -707,61 +846,71 @@ export class AdminRepository {
     processedBy: string,
     note?: string
   ): Promise<void> {
-    await supabase.from('withdrawal_requests').update({
-      status,
-      reviewed_by: processedBy,
-      reviewed_at: new Date().toISOString(),
-      ...(note ? { review_note: note } : {}),
-    }).eq('id', id);
+    const changed = await execute(
+      `UPDATE public.withdrawal_requests
+          SET status = $2,
+              reviewed_by = $3,
+              reviewed_at = NOW(),
+              review_note = $4
+        WHERE id = $1
+          AND status = 'pending'`,
+      [id, status, processedBy, note ?? null]
+    );
+    if (changed !== 1) {
+      throw new Error('Saque não encontrado ou já processado.');
+    }
   }
-
-  // ── Comissões com filtro de status ────────────────────────────────────────
 
   async listCommissionsFiltered(
     statusFilter = 'all',
     limit = 50,
     offset = 0
   ): Promise<{ rows: CommissionRow[]; total: number }> {
-    let q = supabase
-      .from('commission_entries')
-      .select('*, sponsor:users!sponsor_id(name), referred:users!referred_user_id(name)', { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    if (statusFilter !== 'all') q = q.eq('status', statusFilter);
-
-    const { data, count } = await q;
-    type CommEntryFiltered = { sponsor?: { name: string }; referred?: { name: string }; [key: string]: unknown };
-    const rows = (data ?? []).map((r: CommEntryFiltered) => ({
-      ...r,
-      sponsor_name: r.sponsor?.name ?? '',
-      referred_name: r.referred?.name ?? '',
-    })) as CommissionRow[];
-    return { rows, total: count ?? 0 };
+    const filtered = statusFilter !== 'all';
+    const rows = await query<CommissionRow & { total_count: number }>(
+      `SELECT commission.id,
+              commission.sponsor_id,
+              sponsor.name AS sponsor_name,
+              commission.referred_user_id,
+              referred.name AS referred_name,
+              commission.type,
+              commission.level,
+              commission.amount_cents,
+              commission.period,
+              commission.status,
+              commission.created_at::text AS created_at,
+              COUNT(*) OVER()::integer AS total_count
+         FROM public.commission_entries AS commission
+         JOIN public.users AS sponsor ON sponsor.id = commission.sponsor_id
+         JOIN public.users AS referred ON referred.id = commission.referred_user_id
+        WHERE ($1::boolean = FALSE OR commission.status = $2)
+        ORDER BY commission.created_at DESC
+        LIMIT $3 OFFSET $4`,
+      [filtered, filtered ? statusFilter : null, safeLimit(limit), safeOffset(offset)]
+    );
+    return {
+      rows: rows.map(omitTotalCount),
+      total: rows[0]?.total_count ?? 0,
+    };
   }
 
-  // ── Comissão: atualizar status ─────────────────────────────────────────────
-
-  async updateCommissionStatus(commissionId: string, status: 'available' | 'paid' | 'withdrawn'): Promise<void> {
-    const { error } = await supabase
-      .from('commission_entries')
-      .update({ status })
-      .eq('id', commissionId);
-    if (error) throw new Error(`[updateCommissionStatus] ${error.message}`);
+  async updateCommissionStatus(
+    commissionId: string,
+    status: 'available' | 'paid' | 'withdrawn'
+  ): Promise<void> {
+    const changed = await execute(
+      `UPDATE public.commission_entries
+          SET status = $2
+        WHERE id = $1`,
+      [commissionId, status]
+    );
+    if (changed !== 1) throw new Error('Comissão não encontrada.');
   }
 }
 
 export const adminRepository = new AdminRepository();
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function currentPeriod(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function previousPeriod(): string {
-  const now = new Date();
-  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  return `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}`;
 }

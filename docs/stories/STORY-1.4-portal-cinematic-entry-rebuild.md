@@ -19,7 +19,7 @@
 
 - [x] Existe uma única abertura de portal
 - [x] A abertura roda só após login ou cadastro bem-sucedido
-- [x] A abertura mostra IA 3D com rosto, boca e orelhas legíveis
+- [x] A abertura mostra um rosto 3D com boca e orelhas legíveis
 - [x] O usuário pode pular a abertura
 - [x] Refresh e visitas comuns ao portal não reexecutam a sequência
 - [x] Mobile, save-data e reduced-motion usam fallback correto
@@ -31,7 +31,7 @@
 
 ---
 
-## Dev Agent Record
+## Implementation Record
 
 ### Tasks Checklist
 - [x] Criar contrato interno do gate de entrada do portal
@@ -40,7 +40,7 @@
 - [x] Criar `PortalEntrySequence` unificado
 - [x] Criar rosto 3D holográfico com partículas
 - [x] Integrar skip, teclado e handoff para o portal
-- [x] Remover `CinematicLoader` e `AIWelcome`
+- [x] Remover o fluxo antigo de abertura duplicada
 - [x] Limpar CSS órfão do fluxo antigo
 - [x] Criar testes unitários do gate/intent
 - [x] Validar regressão com lint, typecheck, test e build
@@ -54,7 +54,7 @@
 2026-03-14: Implementada nova cena 3D holográfica com partículas, rosto, boca e orelhas.
 2026-03-14: Fluxo antigo removido completamente do portal e do CSS legado.
 2026-03-14: Smoke browser validou overlay novo após cadastro e ausência de replay em refresh.
-2026-03-14: `npm test` global segue com falhas legadas em `.aiox-core/workflow-intelligence` e `src/features/auth/__tests__/auth.service.test.ts`.
+2026-03-14: `npm test` global segue com uma falha legada em `src/features/auth/__tests__/auth.service.test.ts`.
 2026-03-14: Gate ajustado para ler o intent no mount e consumi-lo apenas quando a sequência realmente entra em cena, evitando cancelamento em Strict Mode no ambiente de desenvolvimento.
 2026-03-15: Limpeza da navegação do portal removeu os links "Ver landing" e "Voltar à jornada principal".
 ```
@@ -87,13 +87,6 @@
 - `app/portal/page.tsx`
 - `app/portal/portal-client.tsx`
 - `app/globals.css`
-
-### Deleted Files
-- `components/ai-cinematic-loader.tsx`
-- `components/ai-cinematic-loader.css`
-- `components/ai-welcome.tsx`
-- `components/ai-face-advanced.tsx`
-- `components/ai-neural-system.tsx`
 
 ---
 

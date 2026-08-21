@@ -7,7 +7,7 @@ export const metadata = { title: 'Meus Planos | AXE PRIME' };
 
 export default async function PlanosPage() {
   const user = await authService.getCurrentUser();
-  if (!user) redirect('/login');
+  if (!user) redirect('/auth');
 
   const [kycSubmitted, pendingRequest] = await Promise.all([
     planRequestsRepository.hasSubmittedKyc(user.id),

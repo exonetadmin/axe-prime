@@ -1,6 +1,6 @@
 /**
  * Auth Feature - Public API
- * 
+ *
  * ONLY export public API - implementation details stay private.
  * Other features should import ONLY from this file.
  */
@@ -13,6 +13,7 @@ export type {
   User,
   LoginCredentials,
   RegisterData,
+  AuthSessionContext,
 } from './auth.contract';
 
 // Errors
@@ -23,6 +24,11 @@ export {
   UserNotFoundError,
   InvalidTokenError,
   ValidationError,
+  InvalidReferralCodeError,
+  AccountDisabledError,
+  RefreshTokenReplayError,
+  RefreshTokenAlreadyRotatedError,
+  PasswordResetUnavailableError,
 } from './auth.contract';
 
 // Services
@@ -30,8 +36,3 @@ export { AuthService, authService } from './services/auth.service';
 
 // Repositories (only if needed by other features - usually not)
 // export { UserRepository, userRepository } from './repositories/user.repository';
-
-// React Components
-export { default as LoginForm } from './components/LoginForm';
-export { default as RegisterForm } from './components/RegisterForm';
-export { default as LogoutButton } from './components/LogoutButton';

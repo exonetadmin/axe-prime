@@ -1,13 +1,13 @@
-import Image from "next/image";
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
-import { redirect } from "next/navigation";
+import Image from 'next/image';
+import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
+import { redirect } from 'next/navigation';
 
-import { getAuthenticatedUser } from "@/lib/auth";
-import { accessIconMap, authScreenCopy } from "@/lib/access-copy";
-import HeroBackground from "@/components/hero-background";
+import { getAuthenticatedUser } from '@/lib/auth';
+import { accessIconMap, authScreenCopy } from '@/lib/access-copy';
+import HeroBackground from '@/components/hero-background';
 
-import AuthPanel from "./auth-panel";
+import AuthPanel from './auth-panel';
 
 type AuthPageProps = {
   searchParams: Promise<{
@@ -16,19 +16,24 @@ type AuthPageProps = {
   }>;
 };
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 export default async function AuthPage({ searchParams }: AuthPageProps) {
+  const params = await searchParams;
+  const isPasswordReset = params.mode === 'new-password';
   const user = await getAuthenticatedUser();
 
-  if (user) {
-    redirect("/portal");
+  if (user && !isPasswordReset) {
+    redirect('/portal');
   }
 
-  const params = await searchParams;
-  const initialMode = params.mode === "register" ? "register" : "login";
+  const initialMode = isPasswordReset
+    ? 'new-password'
+    : params.mode === 'register' || params.mode === 'reset'
+      ? params.mode
+      : 'login';
   const initialReferralCode =
-    typeof params.ref === "string" && params.ref.trim() ? params.ref.trim() : undefined;
+    typeof params.ref === 'string' && params.ref.trim() ? params.ref.trim() : undefined;
 
   return (
     <main className="auth-page auth-page-aurora">
@@ -81,10 +86,7 @@ export default async function AuthPage({ searchParams }: AuthPageProps) {
         </article>
 
         <div className="auth-form-shell">
-          <AuthPanel
-            initialMode={initialMode}
-            initialReferralCode={initialReferralCode}
-          />
+          <AuthPanel initialMode={initialMode} initialReferralCode={initialReferralCode} />
         </div>
       </section>
     </main>

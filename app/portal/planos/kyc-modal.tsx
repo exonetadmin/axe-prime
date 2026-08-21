@@ -147,7 +147,6 @@ export default function KycModal({ onClose, userEmail, userPhone, mandatory = fa
       }
     }, 600);
     return () => clearTimeout(cepTimeout.current);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.address_cep]);
 
   function handleSubmit(e: React.FormEvent) {

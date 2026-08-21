@@ -1,40 +1,38 @@
-node_modules
-.next
-out
-coverage
-dist
-.DS_Store
-*.log
-.env
-data/*.db
+# Dependencies
+node_modules/
 
-# Environment & Secrets (AIOX)
-# .env.local — incluído intencionalmente (repo privado)
-.env.*.local
+# Next.js and test output
+.next/
+out/
+coverage/
+dist/
+build/
+playwright-report/
+test-results/
+*.tsbuildinfo
+
+# Environment and secrets
+.env*
+!.env.example
 *.key
 *.pem
 
-# Dependencies (AIOX)
-node_modules/
+# Database backups (must also be stored outside the repository)
+backups/
+*.dump
 
-# Build & Logs (AIOX)
-dist/
-build/
+# Logs and caches
 logs/
+*.log
 __pycache__/
 *.py[cod]
-*.tsbuildinfo
-playwright-report/
-test-results/
 
-# IDE & OS (AIOX)
+# IDE and OS
+.DS_Store
 Thumbs.db
 .idea/
 *.swp
 
-# AIOX Local (AIOX)
-.aiox-core/local/
-.claude/settings.local.json
-.aiox/install-log.txt
-.vercel
-.env*.local
+# Local runtime data
+data/*.db
+.vercel/

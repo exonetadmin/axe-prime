@@ -2,6 +2,8 @@
  * Network Service - MLM Unilevel: rede, carreira, ganhos, árvore, cashback.
  */
 
+import '@/src/server/server-only';
+
 import type {
   NetworkContract,
   NetworkMember,
@@ -14,14 +16,11 @@ import type {
   NetworkCommissionSummary,
   DashboardSummary,
 } from '../network.contract';
-import {
-  POSITION_LEVELS,
-  CAREER_UNLOCK_LEVELS,
-} from '../network.contract';
+import { POSITION_LEVELS, CAREER_UNLOCK_LEVELS } from '../network.contract';
 import { earningsRepository } from '../repositories/earnings.repository';
 import { networkRepository } from '../repositories/network.repository';
 import { configRepository } from '@/src/features/admin/config.repository';
-import { supabase } from '@/lib/supabase';
+import { postgresIntegerToSafeNumber, query, queryOne } from '@/src/server/db/postgres';
 
 function getCurrentPeriod(): string {
   const now = new Date();
@@ -60,19 +59,20 @@ export class NetworkService implements NetworkContract {
     const members = await networkRepository.getDirectReferrals(userId);
     const currentPeriod = getCurrentPeriod();
     const previousPeriod = getPreviousPeriod();
-    const withActive = await Promise.all(members.map(async (m) => {
-      const lastPeriod = await earningsRepository.getLastPaymentPeriod(m.id);
-      const active =
-        !!lastPeriod &&
-        (lastPeriod === currentPeriod || lastPeriod === previousPeriod);
-      return { ...m, active };
-    }));
+    const withActive = await Promise.all(
+      members.map(async m => {
+        const lastPeriod = await earningsRepository.getLastPaymentPeriod(m.id);
+        const active =
+          !!lastPeriod && (lastPeriod === currentPeriod || lastPeriod === previousPeriod);
+        return { ...m, active };
+      })
+    );
     return withActive;
   }
 
   async getMyNetwork(
     userId: string,
-    maxDepth = 5   // MLM Unilevel: máximo 5 níveis por base
+    maxDepth = 5 // MLM Unilevel: máximo 5 níveis por base
   ): Promise<RedeUnilevel> {
     const levels: RedeUnilevel['levels'] = [];
     let currentLevelIds = [userId];
@@ -84,16 +84,17 @@ export class NetworkService implements NetworkContract {
       const nextLevelIds: string[] = [];
       for (const sponsorId of currentLevelIds) {
         const members = await networkRepository.getDirectReferrals(sponsorId);
-        const withLevelAndActive = await Promise.all(members.map(async (m) => {
-          const lastPeriod = await earningsRepository.getLastPaymentPeriod(m.id);
-          const active =
-            !!lastPeriod &&
-            (lastPeriod === currentPeriod || lastPeriod === previousPeriod);
-          return { ...m, level: levelNum, active };
-        }));
+        const withLevelAndActive = await Promise.all(
+          members.map(async m => {
+            const lastPeriod = await earningsRepository.getLastPaymentPeriod(m.id);
+            const active =
+              !!lastPeriod && (lastPeriod === currentPeriod || lastPeriod === previousPeriod);
+            return { ...m, level: levelNum, active };
+          })
+        );
         levels.push({ level: levelNum, members: withLevelAndActive });
         totalMembers += withLevelAndActive.length;
-        nextLevelIds.push(...withLevelAndActive.map((m) => m.id));
+        nextLevelIds.push(...withLevelAndActive.map(m => m.id));
       }
       currentLevelIds = nextLevelIds;
       if (currentLevelIds.length === 0) break;
@@ -117,26 +118,24 @@ export class NetworkService implements NetworkContract {
 
   private async isClient(userId: string): Promise<boolean> {
     // Prioriza adhesion_paid (campo gerenciado pelo admin) sobre adhesion_at
-    const { data } = await supabase
-      .from('users')
-      .select('adhesion_paid, adhesion_at')
-      .eq('id', userId)
-      .maybeSingle();
-    if (!data) return false;
-    return data.adhesion_paid === true || !!data.adhesion_at;
+    const row = await queryOne<{
+      adhesion_paid: boolean;
+      adhesion_at: Date | string | null;
+    }>('SELECT adhesion_paid, adhesion_at FROM users WHERE id = $1', [userId]);
+    if (!row) return false;
+    return row.adhesion_paid === true || !!row.adhesion_at;
   }
 
   private async isActive(userId: string): Promise<boolean> {
     // Prioriza monthly_status (campo gerenciado pelo admin)
-    const { data } = await supabase
-      .from('users')
-      .select('adhesion_paid, monthly_status')
-      .eq('id', userId)
-      .maybeSingle();
-    if (!data) return false;
+    const row = await queryOne<{
+      adhesion_paid: boolean;
+      monthly_status: 'paid' | 'overdue' | null;
+    }>('SELECT adhesion_paid, monthly_status FROM users WHERE id = $1', [userId]);
+    if (!row) return false;
     // Ativo = tem adesão paga E mensalidade não está atrasada
-    if (data.adhesion_paid === true) {
-      return data.monthly_status !== 'overdue';
+    if (row.adhesion_paid === true) {
+      return row.monthly_status !== 'overdue';
     }
     // Fallback: verifica pagamentos na tabela payments
     const last = await earningsRepository.getLastPaymentPeriod(userId);
@@ -148,8 +147,8 @@ export class NetworkService implements NetworkContract {
 
   private async countDirectClients(userId: string): Promise<number> {
     const refs = await networkRepository.getDirectReferrals(userId);
-    const adhesions = await Promise.all(refs.map((r) => earningsRepository.getAdhesion(r.id)));
-    return adhesions.filter((a) => a?.adhesionAt).length;
+    const adhesions = await Promise.all(refs.map(r => earningsRepository.getAdhesion(r.id)));
+    return adhesions.filter(a => a?.adhesionAt).length;
   }
 
   private async isQualifiedVendedorElite(userId: string): Promise<boolean> {
@@ -178,10 +177,7 @@ export class NetworkService implements NetworkContract {
     return count;
   }
 
-  private async isQualifiedAtLevel(
-    userId: string,
-    level: PositionLevel
-  ): Promise<boolean> {
+  private async isQualifiedAtLevel(userId: string, level: PositionLevel): Promise<boolean> {
     switch (level) {
       case 'vendedor_elite':
         return this.isQualifiedVendedorElite(userId);
@@ -204,7 +200,11 @@ export class NetworkService implements NetworkContract {
     const manualCareer = user?.career as PositionLevel | null;
     if (manualCareer && manualCareer in POSITION_LEVELS) {
       const order: PositionLevel[] = [
-        'diretor_geral', 'gerente_senior', 'gestor', 'supervisor', 'vendedor_elite',
+        'diretor_geral',
+        'gerente_senior',
+        'gestor',
+        'supervisor',
+        'vendedor_elite',
       ];
       const nextLevel = order[order.indexOf(manualCareer) - 1] as PositionLevel | undefined;
       return {
@@ -212,7 +212,12 @@ export class NetworkService implements NetworkContract {
         label: POSITION_LEVELS[manualCareer].label,
         requirement: POSITION_LEVELS[manualCareer].requirement,
         // Carreira manual: sem barra de progresso para o próximo nível
-        progress: nextLevel ? { current: CAREER_UNLOCK_LEVELS[manualCareer], required: CAREER_UNLOCK_LEVELS[nextLevel] } : null,
+        progress: nextLevel
+          ? {
+              current: CAREER_UNLOCK_LEVELS[manualCareer],
+              required: CAREER_UNLOCK_LEVELS[nextLevel],
+            }
+          : null,
       };
     }
 
@@ -226,8 +231,7 @@ export class NetworkService implements NetworkContract {
     ];
     for (const level of order) {
       if (await this.isQualifiedAtLevel(userId, level)) {
-        const nextLevel =
-          order[order.indexOf(level) - 1] as PositionLevel | undefined;
+        const nextLevel = order[order.indexOf(level) - 1] as PositionLevel | undefined;
         let progress: { current: number; required: number } | null = null;
         if (nextLevel) {
           const required = 2;
@@ -258,17 +262,15 @@ export class NetworkService implements NetworkContract {
     userId: string,
     maxDepth = 5,
     currentLevel = 0,
-    levelInBase = 0,   // 0 = raiz (sem badge), 1-5 = N1 a N5
-    isNewBase = false  // true quando ultra passa a base de 5 (apenas admin)
+    levelInBase = 0, // 0 = raiz (sem badge), 1-5 = N1 a N5
+    isNewBase = false // true quando ultra passa a base de 5 (apenas admin)
   ): Promise<NetworkTreeNode> {
     const user = await networkRepository.getUserById(userId);
     const name = user?.name ?? 'Usuário';
     const currentPeriod = getCurrentPeriod();
     const previousPeriod = getPreviousPeriod();
     const lastPeriod = await earningsRepository.getLastPaymentPeriod(userId);
-    const active =
-      !!lastPeriod &&
-      (lastPeriod === currentPeriod || lastPeriod === previousPeriod);
+    const active = !!lastPeriod && (lastPeriod === currentPeriod || lastPeriod === previousPeriod);
 
     const children: NetworkTreeNode[] = [];
     if (maxDepth > 0) {
@@ -319,12 +321,15 @@ export class NetworkService implements NetworkContract {
     const durationMonths = cashCfg.duration_months || 12;
 
     // Sempre busca meses realmente pagos — independente de adhesion_at
-    const { data: paidRows } = await supabase
-      .from('cashback_payments')
-      .select('month_number, amount_cents')
-      .eq('user_id', userId);
-
-    const paidMonths = (paidRows ?? []) as { month_number: number; amount_cents: number }[];
+    const paidMonths = await query<{
+      month_number: number;
+      amount_cents: number;
+    }>(
+      `SELECT month_number, amount_cents
+         FROM cashback_payments
+        WHERE user_id = $1`,
+      [userId]
+    );
     const realMesesPagos = paidMonths.length;
     // disponivelCents = soma real dos pagamentos confirmados (sempre presente)
     const disponivelCents = paidMonths.reduce((s, r) => s + (r.amount_cents ?? 0), 0);
@@ -344,9 +349,7 @@ export class NetworkService implements NetworkContract {
       };
     }
 
-    const cashbackPerMonth = Math.floor(
-      (data.planMonthlyCents * data.percentual) / 100
-    );
+    const cashbackPerMonth = Math.floor((data.planMonthlyCents * data.percentual) / 100);
 
     const mesesRestantes = Math.max(0, durationMonths - realMesesPagos);
     const previstoMesCents = mesesRestantes > 0 ? cashbackPerMonth : 0;
@@ -365,9 +368,7 @@ export class NetworkService implements NetworkContract {
     };
   }
 
-  async getNetworkCommissionSummary(
-    userId: string
-  ): Promise<NetworkCommissionSummary> {
+  async getNetworkCommissionSummary(userId: string): Promise<NetworkCommissionSummary> {
     const [position, commCfg] = await Promise.all([
       this.getPosition(userId),
       configRepository.getCommissionConfig(),
@@ -387,7 +388,6 @@ export class NetworkService implements NetworkContract {
       commCfg.level2_pct,
       commCfg.level3_pct,
       commCfg.level4_pct,
-      commCfg.level5_pct,
     ];
     const percentualDesbloqueado = networkPcts
       .slice(0, unlockedLevels)
@@ -429,7 +429,10 @@ export class NetworkService implements NetworkContract {
    *
    * Assim cada número é conferível: origens(bruto) − sacado = saldo disponível.
    */
-  async getWalletBalance(userId: string, dashboard?: DashboardSummary): Promise<{
+  async getWalletBalance(
+    userId: string,
+    dashboard?: DashboardSummary
+  ): Promise<{
     grossCashbackCents: number;
     grossDirectCents: number;
     grossNetworkCents: number;
@@ -439,7 +442,7 @@ export class NetworkService implements NetworkContract {
   }> {
     // Reutiliza o dashboard já carregado pela tela (quando houver) para não
     // recomputar a rede inteira; senão, busca sob demanda.
-    const { cashback, indicacoes, rede } = dashboard ?? await this.getDashboardSummary(userId);
+    const { cashback, indicacoes, rede } = dashboard ?? (await this.getDashboardSummary(userId));
 
     const grossCashbackCents = cashback.disponivelCents;
     const grossDirectCents = indicacoes.disponivelCents;
@@ -448,12 +451,16 @@ export class NetworkService implements NetworkContract {
 
     // Saques que descontam o saldo: pendentes + aprovados (dinheiro a caminho ou
     // já enviado). Apenas 'rejected' devolve o valor ao saldo.
-    const { data: wds } = await supabase
-      .from('withdrawal_requests')
-      .select('amount_cents')
-      .eq('user_id', userId)
-      .in('status', ['pending', 'approved']);
-    const withdrawnCents = (wds ?? []).reduce((s, r) => s + (r.amount_cents ?? 0), 0);
+    const withdrawals = await queryOne<{ total_cents: string }>(
+      `SELECT COALESCE(SUM(amount_cents), 0)::TEXT AS total_cents
+         FROM withdrawal_requests
+        WHERE user_id = $1 AND status IN ('pending', 'approved')`,
+      [userId]
+    );
+    const withdrawnCents = postgresIntegerToSafeNumber(
+      withdrawals?.total_cents,
+      'withdrawal total'
+    );
 
     const availableCents = Math.max(0, grossTotalCents - withdrawnCents);
 

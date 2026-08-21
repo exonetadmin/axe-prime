@@ -73,18 +73,12 @@ const initialNewPasswordState: NewPasswordState = {
 
 const REFERRAL_STORAGE_KEY = 'axe.referralCode';
 
-export default function AuthPanel({
-  initialMode,
-  initialReferralCode = null,
-}: AuthPanelProps) {
+export default function AuthPanel({ initialMode, initialReferralCode = null }: AuthPanelProps) {
   const router = useRouter();
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [referralCode, setReferralCode] = useState<string | null>(() => {
     if (typeof window === 'undefined') return initialReferralCode ?? null;
-    return (
-      initialReferralCode ??
-      sessionStorage.getItem(REFERRAL_STORAGE_KEY)
-    );
+    return initialReferralCode ?? sessionStorage.getItem(REFERRAL_STORAGE_KEY);
   });
 
   useEffect(() => {
@@ -103,9 +97,32 @@ export default function AuthPanel({
     useState<ResetRequestState>(initialResetRequestState);
   const [newPasswordState, setNewPasswordState] =
     useState<NewPasswordState>(initialNewPasswordState);
+  const [resetToken, setResetToken] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (initialMode !== 'new-password') return;
+    const fragment = new URLSearchParams(window.location.hash.slice(1));
+    const query = new URLSearchParams(window.location.search);
+    const candidate = fragment.get('token') ?? query.get('token');
+    if (candidate && /^(?:[A-Za-z0-9_-]{64}|[0-9a-fA-F-]{36})$/.test(candidate)) {
+      setResetToken(candidate);
+    }
+
+    // Remove reset credentials from browser history immediately. Query token
+    // support is read-only compatibility for links generated before this fix.
+    if (window.location.hash || query.has('token')) {
+      query.delete('token');
+      const suffix = query.toString();
+      window.history.replaceState(
+        null,
+        '',
+        `${window.location.pathname}${suffix ? `?${suffix}` : ''}`
+      );
+    }
+  }, [initialMode]);
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -223,19 +240,17 @@ export default function AuthPanel({
     setError(null);
     setSuccess(null);
 
-    const token = new URLSearchParams(window.location.search).get('token');
-
-    if (!token) {
+    if (!resetToken) {
       setError('Token não encontrado. Use o link do e-mail.');
       setPending(false);
       return;
     }
 
     try {
-      const response = await fetch(`/api/auth/reset/${token}`, {
+      const response = await fetch('/api/auth/reset/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newPasswordState),
+        body: JSON.stringify({ ...newPasswordState, token: resetToken }),
       });
 
       const payload = (await response.json().catch(() => null)) as AuthResponsePayload;
@@ -328,7 +343,7 @@ export default function AuthPanel({
                   password: event.target.value,
                 }))
               }
-              placeholder="Mínimo de 8 caracteres"
+              placeholder="Digite sua senha"
               required
             />
           </div>
@@ -498,7 +513,7 @@ export default function AuthPanel({
                   password: event.target.value,
                 }))
               }
-              placeholder="Mínimo de 8 caracteres"
+              placeholder="Mínimo de 15 caracteres"
               required
             />
           </div>

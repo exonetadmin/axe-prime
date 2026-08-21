@@ -1,12 +1,27 @@
-/**
- * Plan Requests Repository — Supabase Postgres
- */
+/** Plan requests repository. Database access is restricted to the server. */
 
-import { supabase } from '@/lib/supabase';
+import 'server-only';
 
-export type PlanRequestType   = 'onboarding' | 'plan_change';
+import {
+  execute,
+  postgresIntegerToSafeNumber,
+  query,
+  queryOne,
+  withTransaction,
+} from '@/src/server/db/postgres';
+
+type PgError = Error & { code?: string; constraint?: string };
+
+export class PendingPlanRequestError extends Error {
+  constructor() {
+    super('Você já possui uma solicitação de plano em análise.');
+    this.name = 'PendingPlanRequestError';
+  }
+}
+
+export type PlanRequestType = 'onboarding' | 'plan_change';
 export type PlanRequestStatus = 'pending' | 'approved' | 'rejected';
-export type PlanInterest      = 'start' | 'prime' | 'elite';
+export type PlanInterest = 'start' | 'prime' | 'elite';
 
 export type PlanRequestRow = {
   id: string;
@@ -83,76 +98,150 @@ export type CreatePlanRequestData = {
   docNumber?: string;
 };
 
+type PlanRequestDatabaseRow = Omit<PlanRequestRow, 'patrimony_cents'> & {
+  patrimony_cents: string | null;
+};
+
+function mapPlanRequestRow(row: PlanRequestDatabaseRow): PlanRequestRow {
+  return {
+    ...row,
+    patrimony_cents:
+      row.patrimony_cents === null
+        ? null
+        : postgresIntegerToSafeNumber(row.patrimony_cents, 'declared patrimony'),
+  };
+}
+
+function assertCents(
+  value: number | undefined,
+  label: string,
+  maximum: number,
+  strictlyPositive = false
+): void {
+  if (
+    value === undefined ||
+    !Number.isSafeInteger(value) ||
+    value < (strictlyPositive ? 1 : 0) ||
+    value > maximum
+  ) {
+    throw new Error(`${label} inválido.`);
+  }
+}
+
 class PlanRequestsRepository {
   async createRequest(data: CreatePlanRequestData): Promise<void> {
-    const { error } = await supabase.from('plan_requests').insert({
-      id: data.id,
-      user_id: data.userId,
-      type: data.type,
-      status: 'pending',
-      requested_plan: data.requestedPlan,
-      monthly_investment_cents: data.monthlyInvestmentCents,
-      // KYC
-      full_name: data.fullName ?? null,
-      cpf: data.cpf ?? null,
-      rg: data.rg ?? null,
-      rg_issue_date: data.rgIssueDate ?? null,
-      rg_issuer: data.rgIssuer ?? null,
-      birth_date: data.birthDate ?? null,
-      birth_state: data.birthState ?? null,
-      birth_city: data.birthCity ?? null,
-      father_name: data.fatherName ?? null,
-      mother_name: data.motherName ?? null,
-      profession: data.profession ?? null,
-      monthly_income_cents: data.monthlyIncomeCents ?? null,
-      patrimony_cents: data.patrimonyCents ?? null,
-      address_cep: data.addressCep ?? null,
-      address_street: data.addressStreet ?? null,
-      address_number: data.addressNumber ?? null,
-      address_complement: data.addressComplement ?? null,
-      address_city: data.addressCity ?? null,
-      address_state: data.addressState ?? null,
-      phone: data.phone ?? null,
-      email: data.email ?? null,
-      marital_status: data.maritalStatus ?? null,
-      // Legacy
-      doc_type: data.docType ?? null,
-      doc_number: data.docNumber ?? null,
-    });
-    if (error) throw new Error(`createRequest failed: ${error.message}`);
-  }
-
-  async markKycSubmitted(userId: string): Promise<void> {
-    const { error } = await supabase.from('users').update({ kyc_submitted: true }).eq('id', userId);
-    if (error) {
-      console.error('[markKycSubmitted] FAILED for user', userId, error);
-      throw new Error(`markKycSubmitted failed: ${error.message}`);
+    assertCents(data.monthlyInvestmentCents, 'Aporte mensal', 2_147_483_647, true);
+    if (data.monthlyIncomeCents !== undefined) {
+      assertCents(data.monthlyIncomeCents, 'Renda mensal', 2_147_483_647);
     }
-    console.log('[markKycSubmitted] SUCCESS for user', userId);
+    if (data.patrimonyCents !== undefined) {
+      assertCents(data.patrimonyCents, 'Patrimônio', Number.MAX_SAFE_INTEGER);
+    }
+
+    try {
+      await withTransaction(async client => {
+        const user = await client.query<{ id: string }>(
+          'SELECT id FROM users WHERE id = $1 AND is_active = TRUE FOR UPDATE',
+          [data.userId]
+        );
+        if (!user.rows[0]) throw new Error('Usuário não encontrado ou desativado.');
+
+        const pending = await client.query<{ id: string }>(
+          `SELECT id
+             FROM plan_requests
+            WHERE user_id = $1 AND status = 'pending'
+            LIMIT 1`,
+          [data.userId]
+        );
+        if (pending.rows[0]) throw new PendingPlanRequestError();
+
+        await client.query(
+          `INSERT INTO plan_requests (
+             id, user_id, type, status, requested_plan,
+             monthly_investment_cents, full_name, cpf, rg, rg_issue_date,
+             rg_issuer, birth_date, birth_state, birth_city, father_name,
+             mother_name, profession, monthly_income_cents, patrimony_cents,
+             address_cep, address_street, address_number, address_complement,
+             address_city, address_state, phone, email, marital_status,
+             doc_type, doc_number
+           ) VALUES (
+             $1, $2, $3, 'pending', $4,
+             $5, $6, $7, $8, $9,
+             $10, $11, $12, $13, $14,
+             $15, $16, $17, $18,
+             $19, $20, $21, $22,
+             $23, $24, $25, $26, $27,
+             $28, $29
+           )`,
+          [
+            data.id,
+            data.userId,
+            data.type,
+            data.requestedPlan,
+            data.monthlyInvestmentCents,
+            data.fullName ?? null,
+            data.cpf ?? null,
+            data.rg ?? null,
+            data.rgIssueDate ?? null,
+            data.rgIssuer ?? null,
+            data.birthDate ?? null,
+            data.birthState ?? null,
+            data.birthCity ?? null,
+            data.fatherName ?? null,
+            data.motherName ?? null,
+            data.profession ?? null,
+            data.monthlyIncomeCents ?? null,
+            data.patrimonyCents ?? null,
+            data.addressCep ?? null,
+            data.addressStreet ?? null,
+            data.addressNumber ?? null,
+            data.addressComplement ?? null,
+            data.addressCity ?? null,
+            data.addressState ?? null,
+            data.phone ?? null,
+            data.email ?? null,
+            data.maritalStatus ?? null,
+            data.docType ?? null,
+            data.docNumber ?? null,
+          ]
+        );
+
+        if (data.type === 'onboarding') {
+          await client.query('UPDATE users SET kyc_submitted = TRUE WHERE id = $1', [data.userId]);
+        }
+      });
+    } catch (error) {
+      if (error instanceof PendingPlanRequestError) throw error;
+      const pgError = error as PgError;
+      if (
+        pgError.code === '23505' &&
+        pgError.constraint === 'ux_plan_requests_one_pending_per_user'
+      ) {
+        throw new PendingPlanRequestError();
+      }
+      throw error;
+    }
   }
 
   async hasSubmittedKyc(userId: string): Promise<boolean> {
-    const { data } = await supabase
-      .from('users')
-      .select('kyc_submitted')
-      .eq('id', userId)
-      .maybeSingle();
-    return data?.kyc_submitted === true;
+    const row = await queryOne<{ kyc_submitted: boolean }>(
+      'SELECT kyc_submitted FROM users WHERE id = $1',
+      [userId]
+    );
+    return row?.kyc_submitted === true;
   }
 
   async getUserPendingRequest(userId: string): Promise<PlanRequestRow | null> {
-    const { data } = await supabase
-      .from('plan_requests')
-      .select(`*, users!inner(name, email)`)
-      .eq('user_id', userId)
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (!data) return null;
-    const u = (data as { users: { name: string; email: string } }).users;
-    return { ...data, user_name: u.name, user_email: u.email } as PlanRequestRow;
+    const row = await queryOne<PlanRequestDatabaseRow>(
+      `SELECT pr.*, u.name AS user_name, u.email AS user_email
+         FROM plan_requests pr
+         JOIN users u ON u.id = pr.user_id
+        WHERE pr.user_id = $1 AND pr.status = 'pending'
+        ORDER BY pr.created_at DESC
+        LIMIT 1`,
+      [userId]
+    );
+    return row ? mapPlanRequestRow(row) : null;
   }
 
   async listRequests(
@@ -160,77 +249,97 @@ class PlanRequestsRepository {
     limit = 50,
     offset = 0
   ): Promise<{ rows: PlanRequestRow[]; total: number }> {
-    let query = supabase
-      .from('plan_requests')
-      .select(`*, users!inner(name, email)`, { count: 'exact' })
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+    const safeLimit = Math.min(Math.max(Math.trunc(limit), 1), 200);
+    const safeOffset = Math.max(Math.trunc(offset), 0);
+    const where = status === 'all' ? '' : 'WHERE pr.status = $1';
+    const values = status === 'all' ? [safeLimit, safeOffset] : [status, safeLimit, safeOffset];
+    const limitPosition = status === 'all' ? 1 : 2;
 
-    if (status !== 'all') query = query.eq('status', status);
-
-    const { data, count, error } = await query;
-    if (error) throw new Error(`listRequests failed: ${error.message}`);
-
-    type PlanReqJoined = { users?: { name: string; email: string }; [key: string]: unknown };
-    const rows = (data ?? []).map((r: PlanReqJoined) => ({
-      ...r,
-      user_name: r.users?.name ?? '',
-      user_email: r.users?.email ?? '',
-    })) as PlanRequestRow[];
-
-    return { rows, total: count ?? 0 };
+    const rows = await query<PlanRequestDatabaseRow & { total_count: string }>(
+      `SELECT pr.*, u.name AS user_name, u.email AS user_email,
+              COUNT(*) OVER()::TEXT AS total_count
+         FROM plan_requests pr
+         JOIN users u ON u.id = pr.user_id
+         ${where}
+        ORDER BY pr.created_at DESC
+        LIMIT $${limitPosition} OFFSET $${limitPosition + 1}`,
+      values
+    );
+    const total = postgresIntegerToSafeNumber(rows[0]?.total_count, 'plan request count');
+    return {
+      rows: rows.map(({ total_count, ...row }) => {
+        void total_count;
+        return mapPlanRequestRow(row);
+      }),
+      total,
+    };
   }
 
   async countByStatus(): Promise<Record<PlanRequestStatus, number>> {
-    const result: Record<PlanRequestStatus, number> = { pending: 0, approved: 0, rejected: 0 };
-    for (const s of ['pending', 'approved', 'rejected'] as PlanRequestStatus[]) {
-      const { count } = await supabase
-        .from('plan_requests')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', s);
-      result[s] = count ?? 0;
+    const rows = await query<{ status: PlanRequestStatus; count: string }>(
+      `SELECT status, COUNT(*)::TEXT AS count
+         FROM plan_requests
+        GROUP BY status`
+    );
+    const result: Record<PlanRequestStatus, number> = {
+      pending: 0,
+      approved: 0,
+      rejected: 0,
+    };
+    for (const row of rows) {
+      result[row.status] = postgresIntegerToSafeNumber(row.count, `${row.status} request count`);
     }
     return result;
   }
 
   async approveRequest(id: string, reviewedBy: string): Promise<void> {
-    const { data: req, error: fetchErr } = await supabase
-      .from('plan_requests')
-      .select('user_id, requested_plan, monthly_investment_cents')
-      .eq('id', id)
-      .single();
+    await withTransaction(async client => {
+      const fetched = await client.query<{
+        user_id: string;
+        requested_plan: PlanInterest;
+        monthly_investment_cents: number;
+        status: PlanRequestStatus;
+      }>(
+        `SELECT user_id, requested_plan, monthly_investment_cents, status
+           FROM plan_requests
+          WHERE id = $1
+          FOR UPDATE`,
+        [id]
+      );
+      const request = fetched.rows[0];
+      if (!request) throw new Error('Solicitação não encontrada.');
+      if (request.status !== 'pending') {
+        throw new Error('Solicitação já foi revisada.');
+      }
 
-    if (fetchErr || !req) throw new Error('Solicitação não encontrada.');
-
-    const { error: e1 } = await supabase
-      .from('plan_requests')
-      .update({ status: 'approved', reviewed_by: reviewedBy, reviewed_at: new Date().toISOString() })
-      .eq('id', id);
-    if (e1) throw new Error(`approveRequest update failed: ${e1.message}`);
-
-    const { error: e2 } = await supabase
-      .from('users')
-      .update({
-        plan_interest: req.requested_plan,
-        plan_monthly_cents: req.monthly_investment_cents,
-        adhesion_value_cents: req.monthly_investment_cents,
-        kyc_submitted: true,
-      })
-      .eq('id', req.user_id);
-    if (e2) throw new Error(`approveRequest user update failed: ${e2.message}`);
+      await client.query(
+        `UPDATE plan_requests
+            SET status = 'approved', reviewed_by = $2,
+                reviewed_at = NOW(), review_note = NULL
+          WHERE id = $1`,
+        [id, reviewedBy]
+      );
+      await client.query(
+        `UPDATE users
+            SET plan_interest = $2, plan_monthly_cents = $3,
+                adhesion_value_cents = $3, kyc_submitted = TRUE
+          WHERE id = $1`,
+        [request.user_id, request.requested_plan, request.monthly_investment_cents]
+      );
+    });
   }
 
   async rejectRequest(id: string, reviewedBy: string, note: string): Promise<void> {
-    const { error } = await supabase
-      .from('plan_requests')
-      .update({
-        status: 'rejected',
-        reviewed_by: reviewedBy,
-        reviewed_at: new Date().toISOString(),
-        review_note: note,
-      })
-      .eq('id', id);
-    if (error) throw new Error(`rejectRequest failed: ${error.message}`);
+    const affected = await execute(
+      `UPDATE plan_requests
+          SET status = 'rejected', reviewed_by = $2,
+              reviewed_at = NOW(), review_note = $3
+        WHERE id = $1 AND status = 'pending'`,
+      [id, reviewedBy, note]
+    );
+    if (affected !== 1) {
+      throw new Error('Solicitação não encontrada ou já revisada.');
+    }
   }
 }
 

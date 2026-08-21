@@ -57,6 +57,7 @@ function maskBrl(value: string): string {
 }
 
 export function AdminEditUserModal({ user, onClose, planDefaults = {} }: Props) {
+  void planDefaults;
   const ref = useRef<HTMLDialogElement>(null);
   const router = useRouter();
   const [state,         action,          pending]          = useActionState(updateUserPlanAction,     null);

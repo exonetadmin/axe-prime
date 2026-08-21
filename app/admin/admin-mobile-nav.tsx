@@ -22,7 +22,6 @@ import {
   LogOut,
   Menu,
   X,
-  Brain,
   CreditCard,
   type LucideIcon,
 } from 'lucide-react';
@@ -51,7 +50,6 @@ const NAV_ITEMS: NavItem[] = [
   { module: 'cashback',      label: 'Cashback',           href: '/admin/cashback',      icon: Percent,         group: 'financeiro' },
   { module: 'planos',        label: 'Planos',             href: '/admin/planos',        icon: CreditCard,      group: 'financeiro' },
   { module: 'configuracoes', label: 'Configurações',      href: '/admin/configuracoes', icon: Settings,        group: 'sistema'    },
-  { module: 'conhecimento',  label: 'Axe IA',              href: '/admin/conhecimento',  icon: Brain,           group: 'sistema'    },
 ];
 
 const GROUP_LABELS: Record<string, string> = {
@@ -71,7 +69,7 @@ export default function AdminMobileNav({ role, name }: Props) {
   const close = useCallback(() => setOpen(false), []);
 
   // Fecha o drawer ao navegar
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { close(); }, [pathname, close]);
 
   // Fecha ao pressionar Escape

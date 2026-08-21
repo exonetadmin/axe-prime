@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { getAuthenticatedUser } from '@/lib/auth';
 import { networkService } from '@/src/features/network';
-import { supabase } from '@/lib/supabase';
+import { walletRepository } from '@/src/features/wallet/wallet.repository';
 import WalletClient from './wallet-client';
 
 export const dynamic = 'force-dynamic';
@@ -24,26 +24,21 @@ interface WalletTransaction {
 
 /* ── Data loaders ──────────────────────────────────────────────────────────── */
 
-function fmtDate(iso: string): string {
+function fmtDate(value: string | Date): string {
   try {
     return new Intl.DateTimeFormat('pt-BR', {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
-    }).format(new Date(iso));
+    }).format(new Date(value));
   } catch {
     return '—';
   }
 }
 
 async function loadCashbackPayments(userId: string): Promise<WalletTransaction[]> {
-  const { data } = await supabase
-    .from('cashback_payments')
-    .select('id, month_number, amount_cents, paid_at')
-    .eq('user_id', userId)
-    .order('paid_at', { ascending: false });
-
-  return (data ?? []).map((r) => ({
+  const rows = await walletRepository.listCashbackPayments(userId);
+  return rows.map((r) => ({
     id: `cb-${r.id}`,
     type: 'cashback' as TxType,
     description: `Cashback mês ${r.month_number}/12`,
@@ -56,31 +51,10 @@ async function loadCashbackPayments(userId: string): Promise<WalletTransaction[]
 }
 
 async function loadCommissions(userId: string): Promise<WalletTransaction[]> {
-  const { data } = await supabase
-    .from('commission_entries')
-    .select('id, type, level, amount_cents, status, created_at, referred_user_id')
-    .eq('sponsor_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(50);
-
-  if (!data || data.length === 0) return [];
-
-  // Busca nomes dos referidos para descrição
-  const referredIds = [...new Set((data).map((r) => r.referred_user_id).filter(Boolean))];
-  const nameMap: Record<string, string> = {};
-  if (referredIds.length > 0) {
-    const { data: users } = await supabase
-      .from('users')
-      .select('id, name')
-      .in('id', referredIds);
-    for (const u of (users ?? [])) {
-      nameMap[u.id] = u.name?.split(' ')[0] ?? 'Parceiro';
-    }
-  }
-
-  return (data).map((r) => {
+  const rows = await walletRepository.listCommissions(userId, 50);
+  return rows.map((r) => {
     const isNetwork = r.type === 'network';
-    const referredName = nameMap[r.referred_user_id] ?? 'Parceiro';
+    const referredName = r.referred_name.split(' ')[0] ?? 'Parceiro';
     const description = isNetwork
       ? `Comissão de Rede (N${r.level ?? 1}) · ${referredName}`
       : `Comissão Venda Direta · ${referredName}`;
@@ -101,14 +75,8 @@ async function loadCommissions(userId: string): Promise<WalletTransaction[]> {
 }
 
 async function loadWithdrawals(userId: string): Promise<WalletTransaction[]> {
-  const { data } = await supabase
-    .from('withdrawal_requests')
-    .select('id, amount_cents, status, created_at')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(50);
-
-  return (data ?? []).map((r) => {
+  const rows = await walletRepository.listWithdrawals(userId, 50);
+  return rows.map((r) => {
     const txStatus: TxStatus = r.status === 'approved'
       ? 'Concluído'
       : r.status === 'rejected'
@@ -151,15 +119,13 @@ export default async function CarteiraPage() {
 
   const allTransactions = [...cashbackTxs, ...commissionTxs, ...withdrawalTxs]
     .sort((a, b) => b.sortKey - a.sortKey)
-    .map(({ sortKey: _, ...tx }) => tx);
+    .map(({ sortKey, ...tx }) => {
+      void sortKey;
+      return tx;
+    });
 
   // CPF gate
-  const { data: userRow } = await supabase
-    .from('users')
-    .select('cpf')
-    .eq('id', user.id)
-    .maybeSingle();
-  const hasCpf = !!(userRow?.cpf && String(userRow.cpf).replace(/\D/g, '').length === 11);
+  const hasCpf = await walletRepository.hasValidCpf(user.id);
 
   return (
     <div className="portal-page static-stage">

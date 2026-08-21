@@ -13,7 +13,6 @@ const NAV_LINKS = [
   { label: 'Benefícios',        href: '/#beneficios' },
   { label: 'Simulador',          href: '/simulador' },
   { label: 'Plano de Carreira', href: '/#carreira' },
-  { label: 'Copiloto IA',       href: '/copiloto', highlight: true },
 ];
 
 /* ── Contatos ─────────────────────────────────────────────────── */
@@ -67,11 +66,6 @@ export default function SiteFooter() {
             Estrutura de inteligência financeira para quem decide crescer com consistência e clareza.
           </p>
 
-          {/* Badge IA vigente */}
-          <div className="sft-ai-badge" aria-label="Copiloto IA disponível">
-            <span className="sft-ai-dot" aria-hidden />
-            Copiloto IA Ativo
-          </div>
         </div>
 
         {/* ── Coluna 2: Navegação ─────────────────────────────── */}
@@ -82,11 +76,8 @@ export default function SiteFooter() {
               <li key={link.href}>
                 <Link
                   href={link.href}
-                  className={`sft-nav-link${link.highlight ? ' sft-nav-link--hl' : ''}`}
+                  className="sft-nav-link"
                 >
-                  {link.highlight && (
-                    <span className="sft-nav-dot" aria-hidden />
-                  )}
                   {link.label}
                 </Link>
               </li>

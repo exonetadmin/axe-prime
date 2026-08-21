@@ -13,9 +13,7 @@ export const dynamic = 'force-dynamic';
 
 function formatPlan(plan: string | null): string {
   if (!plan) return 'Não informado';
-  return (
-    { start: 'Start', prime: 'Prime', elite: 'Elite' }[plan] ?? plan
-  );
+  return { start: 'Start', prime: 'Prime', elite: 'Elite' }[plan] ?? plan;
 }
 
 function formatBRL(cents: number): string {
@@ -65,25 +63,23 @@ export default async function PortalPage() {
   const creditDay = cashCfg.credit_day;
   const durationMonths = cashCfg.duration_months || 12;
   const directPct = commCfg.direct_pct;
-  const maxNetworkPct = commCfg.level1_pct + commCfg.level2_pct + commCfg.level3_pct + commCfg.level4_pct + commCfg.level5_pct;
+  const maxNetworkPct =
+    commCfg.level1_pct + commCfg.level2_pct + commCfg.level3_pct + commCfg.level4_pct;
 
   /* Valores por origem = CREDITADO/ACUMULADO (bruto), iguais em todas as telas.
      O saldo líquido para saque fica exclusivamente na Carteira. */
   const availCashbackCents = cashback.disponivelCents;
-  const availDirectCents   = indicacoes.disponivelCents;
-  const availNetCents      = rede.disponivelCents;
+  const availDirectCents = indicacoes.disponivelCents;
+  const availNetCents = rede.disponivelCents;
 
   const chartData = buildChartData(cashback);
 
   const referralCode = (user.referralCode ?? '').trim();
-  const referralUrl = referralCode
-    ? `${siteUrl}/auth?ref=${encodeURIComponent(referralCode)}`
-    : '';
+  const referralUrl = referralCode ? `${siteUrl}/auth?ref=${encodeURIComponent(referralCode)}` : '';
 
   return (
     <div className="portal-page static-stage">
       <section className="portal-shell">
-
         {/* ── Saldo de Crédito Contratado (estilo banco) ── */}
         <HomeContractedCredit
           adhesionValueCents={user.adhesionValueCents ?? null}
@@ -111,15 +107,25 @@ export default async function PortalPage() {
           creditDay={creditDay}
         />
 
-
         {/* ── 3 Dashboard Cards ── */}
         <div className="dash-grid">
-
           {/* 💰 Cashback do Investimento */}
           <article className="dash-card dash-card-cashback">
             <header className="dash-card-head">
               <span className="dash-card-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="12" y1="1" x2="12" y2="23" />
+                  <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                </svg>
               </span>
               <span className="dash-card-label">Cashback do Investimento</span>
             </header>
@@ -127,10 +133,7 @@ export default async function PortalPage() {
             <div className="dash-card-body">
               <div className="cb-contract-row">
                 <span className="cb-contract-label">Plano Atual</span>
-                <span
-                  className="cb-contract-plan-badge"
-                  data-tier={user.planInterest ?? 'none'}
-                >
+                <span className="cb-contract-plan-badge" data-tier={user.planInterest ?? 'none'}>
                   {formatPlan(user.planInterest)}
                 </span>
               </div>
@@ -151,7 +154,8 @@ export default async function PortalPage() {
                 <span className="cb-contract-value">
                   {cashback.percentual}%
                   <span className="cb-contract-value-suffix">
-                    {' '}({formatBRL(cashback.previstoMesCents)}/mês)
+                    {' '}
+                    ({formatBRL(cashback.previstoMesCents)}/mês)
                   </span>
                 </span>
               </div>
@@ -178,7 +182,18 @@ export default async function PortalPage() {
 
             <a href="/portal/cashback" className="dash-card-link">
               Ver detalhes
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
             </a>
           </article>
 
@@ -186,7 +201,21 @@ export default async function PortalPage() {
           <article className="dash-card dash-card-indicacoes">
             <header className="dash-card-head">
               <span className="dash-card-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <line x1="19" y1="8" x2="19" y2="14" />
+                  <line x1="22" y1="11" x2="16" y2="11" />
+                </svg>
               </span>
               <span className="dash-card-label">Comissão de Indicações</span>
             </header>
@@ -201,9 +230,7 @@ export default async function PortalPage() {
                 </div>
                 <div className="dash-value-divider" />
                 <div className="dash-value-block">
-                  <span className="dash-value-num">
-                    {formatBRL(indicacoes.aReceberCents)}
-                  </span>
+                  <span className="dash-value-num">{formatBRL(indicacoes.aReceberCents)}</span>
                   <span className="dash-value-label">Previsto</span>
                 </div>
                 <div className="dash-value-divider" />
@@ -215,13 +242,26 @@ export default async function PortalPage() {
                 </div>
               </div>
               <div className="dash-card-meta">
-                <span>{directPct}% sobre cada indicado por {durationMonths} meses</span>
+                <span>
+                  {directPct}% sobre cada indicado por {durationMonths} meses
+                </span>
                 <span>Creditado no mesmo dia da confirmação de pagamento</span>
               </div>
             </div>
             <a href="/portal/comissoes" className="dash-card-link">
               Ver comissões
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
             </a>
           </article>
 
@@ -229,12 +269,27 @@ export default async function PortalPage() {
           <article className="dash-card dash-card-rede">
             <header className="dash-card-head">
               <span className="dash-card-icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="2" y1="12" x2="22" y2="12" />
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                </svg>
               </span>
               <span className="dash-card-label">Comissão da Rede</span>
             </header>
             <div className="dash-card-body">
-              <div className="dash-pct-badge">{rede.percentualDesbloqueado}%<span className="dash-pct-max"> / 8%</span></div>
+              <div className="dash-pct-badge">
+                {rede.percentualDesbloqueado}%<span className="dash-pct-max"> / 8%</span>
+              </div>
               <div className="dash-values-row">
                 <div className="dash-value-block">
                   <span className="dash-value-num" data-variant="green">
@@ -244,9 +299,7 @@ export default async function PortalPage() {
                 </div>
                 <div className="dash-value-divider" />
                 <div className="dash-value-block">
-                  <span className="dash-value-num">
-                    {formatBRL(rede.previstoTotalCents)}
-                  </span>
+                  <span className="dash-value-num">{formatBRL(rede.previstoTotalCents)}</span>
                   <span className="dash-value-label">Previsto</span>
                 </div>
                 <div className="dash-value-divider" />
@@ -265,13 +318,26 @@ export default async function PortalPage() {
                 <div
                   className="dash-progress-fill"
                   data-variant="rede"
-                  style={{ width: `${maxNetworkPct > 0 ? (rede.percentualDesbloqueado / maxNetworkPct) * 100 : 0}%` }}
+                  style={{
+                    width: `${maxNetworkPct > 0 ? (rede.percentualDesbloqueado / maxNetworkPct) * 100 : 0}%`,
+                  }}
                 />
               </div>
             </div>
             <a href="/portal/rede" className="dash-card-link">
               Ver rede
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
             </a>
           </article>
         </div>

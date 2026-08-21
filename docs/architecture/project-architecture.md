@@ -2,7 +2,7 @@
 
 ## Visão Geral
 
-O AXE PRIME foi reestruturado seguindo os princípios do framework **AIOX** e as melhores práticas de arquitetura de software.
+O AXE PRIME segue uma arquitetura modular e práticas consolidadas de engenharia de software.
 
 ---
 
@@ -32,7 +32,8 @@ Cada feature expõe sua API pública através de um arquivo `.contract.ts`:
 ### 3. Repository Pattern
 - Todo acesso a dados isolado em repositories
 - Facilita testes (mocking)
-- Permite trocar implementação (SQLite → PostgreSQL)
+- PostgreSQL é a única persistência suportada
+- SQL parametrizado e transações ficam restritos ao runtime do servidor
 
 ### 4. Service Pattern
 - Business logic encapsulada em serviços
@@ -51,7 +52,7 @@ Cada feature expõe sua API pública através de um arquivo `.contract.ts`:
 ```
 axe-prime/
 ├── app/                    # Next.js App Router
-│   ├── api/               # API routes
+│   ├── api/               # APIs HTTP e autenticação Bearer
 │   ├── auth/              # Auth pages
 │   ├── portal/            # Portal pages
 │   ├── simulador/         # Simulator pages
@@ -61,12 +62,15 @@ axe-prime/
 │   │   ├── auth/         # Authentication feature
 │   │   ├── simulator/    # Investment simulator
 │   │   └── portal/       # Member portal
+│   ├── server/           # Pool PostgreSQL e controles de segurança
 │   └── shared/           # Shared code
 │       ├── components/   # Atomic design system
 │       ├── hooks/        # Generic hooks
 │       ├── utils/        # Utilities
 │       └── events/       # Event Bus
 ├── tokens/               # Design tokens (DTCG)
+├── database/migrations/  # Schema PostgreSQL versionado
+├── scripts/              # Runner de migrations e bootstrap administrativo
 ├── docs/                 # Documentation
 │   ├── stories/         # User stories
 │   └── architecture/    # Architecture docs
@@ -203,15 +207,17 @@ import { LoginForm } from '@/features/auth/components/LoginForm';
 ## Segurança
 
 ### Autenticação
-- JWT com httpOnly cookies
-- bcryptjs para hashing (12 rounds)
-- Validação de senha forte
-- Rate limiting (implementar)
+- Access JWT Bearer curto com algoritmo, issuer, audience e claims validados
+- Refresh token opaco, armazenado somente como hash e rotacionado por uso
+- Cookies `HttpOnly`, `Secure` em produção e proteção CSRF para autenticação por cookie
+- Senhas novas com scrypt; hashes bcrypt legados são reprocessados após login válido
+- Sessões revogáveis, `token_version` e rate limiting compartilhado no PostgreSQL
 
 ### Autorização
-- Server Components para páginas protegidas
-- Middleware não usado (Next.js 16+ usa Proxy)
-- RLS policies quando migrar para PostgreSQL
+- APIs e Server Actions validam a sessão no backend antes de executar regras de negócio
+- RBAC administrativo por função (`master`, `financeiro`, `suporte`)
+- Proxy faz somente a barreira criptográfica rápida; a decisão autoritativa consulta a sessão
+- O navegador nunca possui credenciais nem conexão direta com o PostgreSQL
 
 ---
 
@@ -237,7 +243,7 @@ import { LoginForm } from '@/features/auth/components/LoginForm';
 - [ ] API de evolução patrimonial
 
 ### Fase 4: Scale
-- [ ] PostgreSQL migration
+- [x] PostgreSQL migration
 - [ ] Redis caching
 - [ ] CDN setup
 - [ ] Monitoring (Sentry)
@@ -246,7 +252,5 @@ import { LoginForm } from '@/features/auth/components/LoginForm';
 
 ## Referências
 
-- [AIOX Framework](.aiox-core/)
-- [Next.js React Tech Preset](.aiox-core/data/tech-presets/nextjs-react.md)
 - [Design Tokens](tokens/)
 - [Stories](docs/stories/)

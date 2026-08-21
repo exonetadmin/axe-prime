@@ -3,7 +3,7 @@
 import { useState, useId, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { requestWithdrawalAction } from './carteira.actions';
+import { apiFetch } from '@/lib/api-client';
 import {
   ArrowDownToLine,
   X,
@@ -75,7 +75,6 @@ function WithdrawalModal({
   const sliderId = useId();
   const clampedMax = Math.max(maxCents, MIN_WITHDRAWAL);
   const [value, setValue] = useState(clampedMax); // Start at max available
-  const [mounted, setMounted] = useState(false);
   const [sending, setSending] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   
@@ -84,8 +83,6 @@ function WithdrawalModal({
   // Agora a porcentagem representa a barra total começando de 0.
   // Assim a posição visual sempre bate matematicamente com os botões.
   const pct = clampedMax === 0 ? 0 : (value / clampedMax) * 100;
-
-  useEffect(() => { setMounted(true); }, []);
 
   // Bloqueia scroll do body
   useEffect(() => {
@@ -112,8 +109,6 @@ function WithdrawalModal({
       setSending(false);
     }
   };
-
-  if (!mounted) return null;
 
   const modal = (
     <div className="liqe-overlay" role="dialog" aria-modal="true" onClick={sending ? undefined : onClose}>
@@ -310,7 +305,12 @@ export default function WalletClient({
   const router = useRouter();
 
   const handleConfirm = useCallback(async (amountCents: number) => {
-    const result = await requestWithdrawalAction(amountCents);
+    const response = await apiFetch('/api/v1/withdrawals', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amountCents }),
+    });
+    const result = (await response.json()) as { ok?: boolean; message?: string };
     if (result.ok) {
       // Optimistic: insere a transação imediatamente na lista
       const now = new Date();
@@ -331,7 +331,7 @@ export default function WalletClient({
       setModalOpen(false);
       router.refresh();
     } else {
-      throw new Error(result.message);
+      throw new Error(result.message ?? 'Não foi possível solicitar o saque.');
     }
   }, [router]);
 

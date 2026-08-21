@@ -1,8 +1,8 @@
 /**
  * Admin Feature – Types & RBAC Definitions
  *
- * Isolated from the client auth feature. Admin sessions use a separate
- * cookie (`admin_session`) and never share context with portal users.
+ * Isolated from the client auth feature. Admin sessions use separate signed
+ * access and opaque refresh credentials and never share portal authorization.
  */
 
 export type AdminRole = 'master' | 'financeiro' | 'suporte';
@@ -12,6 +12,11 @@ export type AdminUser = {
   name: string;
   email: string;
   role: AdminRole;
+};
+
+/** Identity bound to the exact credential version that passed password verification. */
+export type AuthenticatedAdminUser = AdminUser & {
+  tokenVersion: number;
 };
 
 /** All navigable module keys in the admin panel */
@@ -25,7 +30,6 @@ export type AdminModule =
   | 'cashback'
   | 'rede'
   | 'configuracoes'
-  | 'conhecimento'
   | 'planos';
 
 /** Which modules each role can access */
@@ -40,7 +44,6 @@ export const ROLE_PERMISSIONS: Record<AdminRole, AdminModule[]> = {
     'cashback',
     'rede',
     'configuracoes',
-    'conhecimento',
     'planos',
   ],
   financeiro: ['dashboard', 'saques', 'pix', 'extrato', 'planos'],

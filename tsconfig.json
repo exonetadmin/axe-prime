@@ -44,10 +44,5 @@
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": [
-    "node_modules",
-    "skills",
-    "Orbital SaaS Hero Section Template_files",
-    ".tmp_pdf_images"
-  ]
+  "exclude": ["node_modules"]
 }

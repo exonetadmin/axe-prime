@@ -1,23 +1,21 @@
-import { NextResponse } from 'next/server';
-import { authService } from '../../../../src/features/auth';
+import { authService } from '@/src/features/auth';
+import { authJson } from '../_http';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const user = await authService.getCurrentUser();
-
+    const user = await authService.authenticateRequest(request);
     if (!user) {
-      return NextResponse.json(
+      return authJson(
         { error: 'Não autenticado' },
-        { status: 401 }
+        {
+          status: 401,
+          headers: { 'WWW-Authenticate': 'Bearer realm="axe-prime"' },
+        }
       );
     }
-
-    return NextResponse.json({ user });
+    return authJson({ user });
   } catch (error) {
-    console.error('[Auth] Session error:', error);
-    return NextResponse.json(
-      { error: 'Erro ao verificar sessão.' },
-      { status: 500 }
-    );
+    console.error('[Auth] Session lookup failed', error);
+    return authJson({ error: 'Erro ao verificar sessão.' }, { status: 500 });
   }
 }

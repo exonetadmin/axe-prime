@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { apiFetch } from '@/lib/api-client';
 
 interface AvatarUploaderProps {
   /** URL atual do avatar (null = sem foto) */
@@ -38,7 +39,7 @@ export function AvatarUploader({ currentUrl, name }: AvatarUploaderProps) {
     formData.append('avatar', file);
 
     startTransition(async () => {
-      const res = await fetch('/api/perfil/avatar', {
+      const res = await apiFetch('/api/v1/profile/avatar', {
         method: 'POST',
         body: formData,
       });
@@ -56,7 +57,7 @@ export function AvatarUploader({ currentUrl, name }: AvatarUploaderProps) {
   function handleRemove() {
     setError(null);
     startTransition(async () => {
-      await fetch('/api/perfil/avatar', { method: 'DELETE' });
+      await apiFetch('/api/v1/profile/avatar', { method: 'DELETE' });
       setPreview(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       router.refresh();

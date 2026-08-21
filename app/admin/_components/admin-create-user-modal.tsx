@@ -8,13 +8,15 @@ import { UserPlus, X, Eye, EyeOff, Copy, CheckCircle2, Loader2 } from 'lucide-re
 type Props = { onClose: () => void };
 
 export function AdminCreateUserModal({ onClose }: Props) {
-  const ref    = useRef<HTMLDialogElement>(null);
+  const ref = useRef<HTMLDialogElement>(null);
   const router = useRouter();
   const [state, action, pending] = useActionState(createUserAction, null);
   const [showPassword, setShowPassword] = useState(false);
-  const [copied, setCopied]             = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  useEffect(() => { ref.current?.showModal(); }, []);
+  useEffect(() => {
+    ref.current?.showModal();
+  }, []);
 
   // Fecha se clicar no backdrop
   function handleBackdrop(e: React.MouseEvent) {
@@ -92,7 +94,6 @@ export function AdminCreateUserModal({ onClose }: Props) {
           /* ── Formulário ───────────────────────────────────── */
           <form action={action} className="eum-body" autoComplete="off">
             <div className="eum-grid" style={{ gridTemplateColumns: '1fr' }}>
-
               {/* Nome completo */}
               <div className="eum-field eum-field--full">
                 <label className="eum-label" htmlFor="cum-name">
@@ -137,9 +138,10 @@ export function AdminCreateUserModal({ onClose }: Props) {
                     name="password"
                     type={showPassword ? 'text' : 'password'}
                     className="eum-input cum-password-input"
-                    placeholder="Mín. 8 chars, maiúscula, número"
+                    placeholder="Entre 15 e 128 caracteres"
                     required
-                    minLength={8}
+                    minLength={15}
+                    maxLength={128}
                     autoComplete="new-password"
                   />
                   <button
@@ -151,19 +153,17 @@ export function AdminCreateUserModal({ onClose }: Props) {
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
-                <p className="eum-hint">
-                  A senha precisa ter letra maiúscula, minúscula e número.
-                </p>
+                <p className="eum-hint">Use uma frase-senha longa, com 15 a 128 caracteres.</p>
               </div>
 
               {/* Código de patrocinador */}
               <div className="cum-info-box">
                 <span className="cum-info-icon">🔗</span>
                 <p className="cum-info-text">
-                  O código de patrocinador <strong>AP-XXXXXXXX</strong> será gerado automaticamente após o cadastro.
+                  O código de patrocinador <strong>AP-XXXXXXXX</strong> será gerado automaticamente
+                  após o cadastro.
                 </p>
               </div>
-
             </div>
 
             {/* Erro de server action */}
@@ -183,15 +183,15 @@ export function AdminCreateUserModal({ onClose }: Props) {
               >
                 Cancelar
               </button>
-              <button
-                type="submit"
-                className="eum-btn eum-btn--primary"
-                disabled={pending}
-              >
+              <button type="submit" className="eum-btn eum-btn--primary" disabled={pending}>
                 {pending ? (
-                  <><Loader2 size={15} className="eum-spin" /> Criando…</>
+                  <>
+                    <Loader2 size={15} className="eum-spin" /> Criando…
+                  </>
                 ) : (
-                  <><UserPlus size={15} /> Criar Usuário</>
+                  <>
+                    <UserPlus size={15} /> Criar Usuário
+                  </>
                 )}
               </button>
             </div>
