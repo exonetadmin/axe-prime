@@ -138,9 +138,9 @@ export function AdminCreateUserModal({ onClose }: Props) {
                     name="password"
                     type={showPassword ? 'text' : 'password'}
                     className="eum-input cum-password-input"
-                    placeholder="Entre 15 e 128 caracteres"
+                    placeholder="Entre 8 e 128 caracteres"
                     required
-                    minLength={15}
+                    minLength={8}
                     maxLength={128}
                     autoComplete="new-password"
                   />
@@ -153,7 +153,9 @@ export function AdminCreateUserModal({ onClose }: Props) {
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
-                <p className="eum-hint">Use uma frase-senha longa, com 15 a 128 caracteres.</p>
+                <p className="eum-hint">
+                  Use uma senha com 8 a 128 caracteres, incluindo letra, número e caractere especial.
+                </p>
               </div>
 
               {/* Código de patrocinador */}

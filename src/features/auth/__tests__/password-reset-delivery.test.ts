@@ -22,6 +22,7 @@ describe('WebhookPasswordResetDelivery', () => {
       email: 'user@example.com',
       name: 'User',
       resetToken: token,
+      emailConfirmationCode: '123456',
     });
 
     const requestInit = fetchMock.mock.calls[0]?.[1];

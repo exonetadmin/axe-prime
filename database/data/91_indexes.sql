@@ -57,6 +57,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_admin_users_email_normalized
   ON public.admin_users (lower(btrim(email)));
 CREATE INDEX IF NOT EXISTS ix_admin_users_active_created
   ON public.admin_users (active, created_at);
+CREATE INDEX IF NOT EXISTS ix_admin_users_mfa_enabled
+  ON public.admin_users (mfa_enabled, id)
+  WHERE mfa_enabled IS TRUE;
 
 CREATE INDEX IF NOT EXISTS ix_auth_sessions_user_active
   ON public.auth_sessions (user_id, expires_at)
@@ -81,6 +84,15 @@ CREATE INDEX IF NOT EXISTS ix_auth_refresh_tokens_session
 CREATE INDEX IF NOT EXISTS ix_auth_refresh_tokens_expiry
   ON public.auth_refresh_tokens (expires_at)
   WHERE consumed_at IS NULL AND revoked_at IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_admin_mfa_challenges_token_hash
+  ON public.admin_mfa_challenges (token_hash);
+CREATE INDEX IF NOT EXISTS ix_admin_mfa_challenges_admin
+  ON public.admin_mfa_challenges (admin_user_id, created_at DESC)
+  WHERE consumed_at IS NULL;
+CREATE INDEX IF NOT EXISTS ix_admin_mfa_challenges_expiry
+  ON public.admin_mfa_challenges (expires_at)
+  WHERE consumed_at IS NULL;
 CREATE INDEX IF NOT EXISTS ix_auth_refresh_tokens_consumed_retention
   ON public.auth_refresh_tokens (consumed_at)
   WHERE consumed_at IS NOT NULL;

@@ -10,6 +10,7 @@ import {
   withTransaction,
 } from '@/src/server/db/postgres';
 import { encodeAvatarUserId, trustedAvatarUrl } from '@/src/features/profile/avatar-url';
+import { appendSecurityAuditEvent } from '@/src/server/security/audit-log';
 
 export type AdminUserRow = {
   id: string;
@@ -437,12 +438,17 @@ export class AdminRepository {
     };
   }
 
-  async approveWithdrawal(id: string, processedBy: string): Promise<void> {
-    await this.updateWithdrawalStatus(id, 'approved', processedBy);
+  async approveWithdrawal(id: string, processedBy: string, actorId: string): Promise<void> {
+    await this.updateWithdrawalStatus(id, 'approved', processedBy, actorId);
   }
 
-  async rejectWithdrawal(id: string, processedBy: string, note: string): Promise<void> {
-    await this.updateWithdrawalStatus(id, 'rejected', processedBy, note);
+  async rejectWithdrawal(
+    id: string,
+    processedBy: string,
+    actorId: string,
+    note: string
+  ): Promise<void> {
+    await this.updateWithdrawalStatus(id, 'rejected', processedBy, actorId, note);
   }
 
   async getFullNetworkTree(rootId: string | null): Promise<AdminNetworkNode[]> {
@@ -622,22 +628,39 @@ export class AdminRepository {
   async markCashbackMonthPaid(
     userId: string,
     monthNumber: number,
-    amountCents: number,
-    paidBy: string
+    paidBy: string,
+    actorId: string
   ): Promise<void> {
     await withTransaction(async client => {
       const userResult = await client.query<{
         sponsor_id: string | null;
         plan_monthly_cents: number | null;
+        cashback_pct: number;
+        adhesion_paid: boolean;
+        adhesion_at: string | null;
+        is_active: boolean;
       }>(
-        `SELECT sponsor_id, plan_monthly_cents
+        `SELECT sponsor_id, plan_monthly_cents, cashback_pct,
+                adhesion_paid, adhesion_at::text AS adhesion_at, is_active
            FROM public.users
           WHERE id = $1
-          FOR SHARE`,
+          FOR UPDATE`,
         [userId]
       );
       const user = userResult.rows[0];
       if (!user) throw new Error('Usuário não encontrado.');
+      if (
+        !user.is_active ||
+        (!user.adhesion_paid && !user.adhesion_at) ||
+        !user.plan_monthly_cents
+      ) {
+        throw new Error('Usuário não está elegível para cashback.');
+      }
+      const planMonthlyCents = user.plan_monthly_cents;
+      const amountCents = Math.floor((planMonthlyCents * user.cashback_pct) / 100);
+      if (!Number.isSafeInteger(amountCents) || amountCents <= 0) {
+        throw new Error('Configuração de cashback inválida para este usuário.');
+      }
 
       await client.query(
         `INSERT INTO public.cashback_payments
@@ -649,8 +672,18 @@ export class AdminRepository {
                paid_by = EXCLUDED.paid_by`,
         [randomUUID(), userId, monthNumber, amountCents, paidBy]
       );
+      await appendSecurityAuditEvent(client, {
+        category: 'financial',
+        action: 'cashback_month_paid',
+        outcome: 'success',
+        actorType: 'admin',
+        actorId,
+        subjectType: 'user',
+        subjectId: userId,
+        metadata: { monthNumber, amountCents },
+      });
 
-      if (!user.sponsor_id || !user.plan_monthly_cents) return;
+      if (!user.sponsor_id) return;
       const percentages = await loadCommissionPercentages(client);
       const period = `cashback-m${monthNumber}`;
       const unlockByCareer: Record<string, number> = {
@@ -686,9 +719,7 @@ export class AdminRepository {
           }
         }
 
-        const commissionCents = Math.floor(
-          user.plan_monthly_cents * ((percentages[level] ?? 0) / 100)
-        );
+        const commissionCents = Math.floor(planMonthlyCents * ((percentages[level] ?? 0) / 100));
         if (commissionCents <= 0) break;
         await client.query(
           `INSERT INTO public.commission_entries
@@ -712,7 +743,11 @@ export class AdminRepository {
     });
   }
 
-  async unmarkCashbackMonthPaid(userId: string, monthNumber: number): Promise<void> {
+  async unmarkCashbackMonthPaid(
+    userId: string,
+    monthNumber: number,
+    actorId: string
+  ): Promise<void> {
     await withTransaction(async client => {
       const period = `cashback-m${monthNumber}`;
       const commissions = await client.query<{ status: string }>(
@@ -741,6 +776,16 @@ export class AdminRepository {
             AND period = $2`,
         [userId, period]
       );
+      await appendSecurityAuditEvent(client, {
+        category: 'financial',
+        action: 'cashback_month_reverted',
+        outcome: 'success',
+        actorType: 'admin',
+        actorId,
+        subjectType: 'user',
+        subjectId: userId,
+        metadata: { monthNumber },
+      });
     });
   }
 
@@ -844,21 +889,36 @@ export class AdminRepository {
     id: string,
     status: 'approved' | 'rejected',
     processedBy: string,
+    actorId: string,
     note?: string
   ): Promise<void> {
-    const changed = await execute(
-      `UPDATE public.withdrawal_requests
-          SET status = $2,
-              reviewed_by = $3,
-              reviewed_at = NOW(),
-              review_note = $4
-        WHERE id = $1
-          AND status = 'pending'`,
-      [id, status, processedBy, note ?? null]
-    );
-    if (changed !== 1) {
-      throw new Error('Saque não encontrado ou já processado.');
-    }
+    await withTransaction(async client => {
+      const changed = await client.query<{ user_id: string; amount_cents: number }>(
+        `UPDATE public.withdrawal_requests
+            SET status = $2,
+                reviewed_by = $3,
+                reviewed_at = NOW(),
+                review_note = $4
+          WHERE id = $1
+            AND status = 'pending'
+          RETURNING user_id, amount_cents`,
+        [id, status, processedBy, note ?? null]
+      );
+      const withdrawal = changed.rows[0];
+      if (!withdrawal) {
+        throw new Error('Saque não encontrado ou já processado.');
+      }
+      await appendSecurityAuditEvent(client, {
+        category: 'financial',
+        action: status === 'approved' ? 'withdrawal_approved' : 'withdrawal_rejected',
+        outcome: 'success',
+        actorType: 'admin',
+        actorId,
+        subjectType: 'withdrawal_request',
+        subjectId: id,
+        metadata: { amountCents: withdrawal.amount_cents, userId: withdrawal.user_id },
+      });
+    });
   }
 
   async listCommissionsFiltered(
@@ -896,15 +956,34 @@ export class AdminRepository {
 
   async updateCommissionStatus(
     commissionId: string,
-    status: 'available' | 'paid' | 'withdrawn'
+    status: 'available' | 'paid' | 'withdrawn',
+    actorId: string
   ): Promise<void> {
-    const changed = await execute(
-      `UPDATE public.commission_entries
-          SET status = $2
-        WHERE id = $1`,
-      [commissionId, status]
-    );
-    if (changed !== 1) throw new Error('Comissão não encontrada.');
+    await withTransaction(async client => {
+      const changed = await client.query<{ amount_cents: number; sponsor_id: string }>(
+        `UPDATE public.commission_entries
+            SET status = $2
+          WHERE id = $1
+          RETURNING amount_cents, sponsor_id`,
+        [commissionId, status]
+      );
+      const commission = changed.rows[0];
+      if (!commission) throw new Error('Comissão não encontrada.');
+      await appendSecurityAuditEvent(client, {
+        category: 'financial',
+        action: 'commission_status_changed',
+        outcome: 'success',
+        actorType: 'admin',
+        actorId,
+        subjectType: 'commission_entry',
+        subjectId: commissionId,
+        metadata: {
+          amountCents: commission.amount_cents,
+          sponsorId: commission.sponsor_id,
+          status,
+        },
+      });
+    });
   }
 }
 

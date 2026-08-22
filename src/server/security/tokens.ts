@@ -3,9 +3,17 @@ import '@/src/server/server-only';
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
 
-export const ACCESS_TOKEN_COOKIE = 'axeprime_access_token';
-export const REFRESH_TOKEN_COOKIE = 'axeprime_refresh_token';
-export const CSRF_TOKEN_COOKIE = 'axeprime_csrf_token';
+// __Host- prevents sibling domains and narrower paths from shadowing the
+// authentication cookies in production. Plain names preserve HTTP localhost
+// development, where browsers correctly reject Secure-prefixed cookies.
+const USER_COOKIE_PREFIX = process.env.NODE_ENV === 'production' ? '__Host-' : '';
+export const ACCESS_TOKEN_COOKIE = `${USER_COOKIE_PREFIX}axeprime_access_token`;
+export const REFRESH_TOKEN_COOKIE = `${USER_COOKIE_PREFIX}axeprime_refresh_token`;
+export const CSRF_TOKEN_COOKIE = `${USER_COOKIE_PREFIX}axeprime_csrf_token`;
+const ADMIN_COOKIE_PREFIX = process.env.NODE_ENV === 'production' ? '__Secure-' : '';
+export const ADMIN_ACCESS_TOKEN_COOKIE = `${ADMIN_COOKIE_PREFIX}axeprime_admin_access_token`;
+export const ADMIN_REFRESH_TOKEN_COOKIE = `${ADMIN_COOKIE_PREFIX}axeprime_admin_refresh_token`;
+export const ADMIN_CSRF_TOKEN_COOKIE = `${ADMIN_COOKIE_PREFIX}axeprime_admin_csrf_token`;
 
 function positiveIntegerEnv(name: string, fallback: number): number {
   const raw = process.env[name]?.trim();
@@ -151,6 +159,15 @@ export function hashOpaqueToken(token: string): string {
   return createHmac('sha256', getTokenPepper())
     .update('axe-prime:opaque-token:v1\0', 'utf8')
     .update(token, 'utf8')
+    .digest('hex');
+}
+
+export function hashPasswordResetCode(email: string, code: string): string {
+  return createHmac('sha256', getTokenPepper())
+    .update('axe-prime:password-reset-confirmation:v1\0', 'utf8')
+    .update(email, 'utf8')
+    .update('\0', 'utf8')
+    .update(code, 'utf8')
     .digest('hex');
 }
 

@@ -14,6 +14,7 @@ import { useState, useId, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { AvatarCropModal } from './avatar-crop-modal';
 import { apiFetch } from '@/lib/api-client';
+import { isValidCpf } from '@/src/shared/validation/brasil';
 
 type ProfileApiResult = {
   ok: boolean;
@@ -68,17 +69,7 @@ export function obscureCpf(masked: string): string {
 }
 
 export function validateCpf(cpf: string): boolean {
-  const d = cpf.replace(/\D/g, '');
-  if (d.length !== 11 || /^(.)\1{10}$/.test(d)) return false;
-
-  const calc = (n: number) => {
-    let sum = 0;
-    for (let i = 0; i < n - 1; i++) sum += parseInt(d[i]!) * (n - i);
-    const rem = (sum * 10) % 11;
-    return rem === 10 || rem === 11 ? 0 : rem;
-  };
-
-  return calc(10) === parseInt(d[9]!) && calc(11) === parseInt(d[10]!);
+  return isValidCpf(cpf);
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -473,7 +464,7 @@ export function SecuritySection() {
   const [passFeedback, setPassFeedback] = useState<string | null>(null);
   const [passLoading, setPassLoading] = useState(false);
 
-  const canUpdate = curPass.length > 0 && newPass.length >= 15 && newPass === confPass;
+  const canUpdate = curPass.length > 0 && newPass.length >= 8 && newPass === confPass;
 
   const handleChangeSenha = async () => {
     if (!canUpdate) return;
@@ -503,7 +494,11 @@ export function SecuritySection() {
       </Field>
 
       <div className="pf-two-col">
-        <Field id={newPassId} label="Nova Senha" helper="Mínimo de 15 caracteres.">
+        <Field
+          id={newPassId}
+          label="Nova Senha"
+          helper="Mínimo de 8 caracteres e deve incluir letra, número e caractere especial."
+        >
           <PasswordInput id={newPassId} value={newPass} onChange={setNewPass} />
         </Field>
         <Field id={confPassId} label="Confirmar Nova Senha">

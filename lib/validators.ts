@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { validatePasswordPolicy } from './password-policy';
 
 function passwordLength(value: string): number {
   return Array.from(value.normalize('NFC')).length;
@@ -6,8 +7,9 @@ function passwordLength(value: string): number {
 
 export const newPasswordSchema = z
   .string()
-  .refine(value => passwordLength(value) >= 15, {
-    message: 'A senha precisa ter pelo menos 15 caracteres.',
+  .refine(value => validatePasswordPolicy(value) === null, {
+    message:
+      'A senha deve ter de 8 a 128 caracteres e incluir pelo menos uma letra, um número e um caractere especial.',
   })
   .refine(value => passwordLength(value) <= 128, {
     message: 'A senha excede o limite permitido.',
@@ -78,6 +80,12 @@ export const resetPasswordSchema = z
 
 export const resetPasswordConfirmSchema = resetPasswordSchema.and(
   z.object({
+    email: z
+      .string()
+      .max(320, 'Informe um e-mail válido.')
+      .email('Informe um e-mail válido.')
+      .transform(value => value.trim().toLowerCase()),
+    emailConfirmationCode: z.string().regex(/^\d{6}$/, 'Código inválido.'),
     token: z.string().regex(/^(?:[A-Za-z0-9_-]{64}|[0-9a-fA-F-]{36})$/, 'Token inválido.'),
   })
 );

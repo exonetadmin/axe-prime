@@ -84,6 +84,12 @@ function createPool(): Pool {
           rejectUnauthorized: true,
           ...(ca ? { ca } : {}),
         };
+  const statementTimeoutMs = readPositiveInteger('DATABASE_STATEMENT_TIMEOUT_MS', 15_000);
+  const lockTimeoutMs = readPositiveInteger('DATABASE_LOCK_TIMEOUT_MS', 5_000);
+  const transactionTimeoutMs = readPositiveInteger(
+    'DATABASE_IDLE_IN_TRANSACTION_TIMEOUT_MS',
+    15_000
+  );
 
   const pool = new Pool({
     connectionString,
@@ -92,7 +98,12 @@ function createPool(): Pool {
     idleTimeoutMillis: readPositiveInteger('DATABASE_IDLE_TIMEOUT_MS', 30_000),
     connectionTimeoutMillis: readPositiveInteger('DATABASE_CONNECTION_TIMEOUT_MS', 10_000),
     application_name: 'axe-prime-web',
-    options: '-c search_path=pg_catalog,public',
+    options: [
+      '-c search_path=pg_catalog,public',
+      `-c statement_timeout=${statementTimeoutMs}`,
+      `-c lock_timeout=${lockTimeoutMs}`,
+      `-c idle_in_transaction_session_timeout=${transactionTimeoutMs}`,
+    ].join(' '),
   });
 
   pool.on('error', error => {

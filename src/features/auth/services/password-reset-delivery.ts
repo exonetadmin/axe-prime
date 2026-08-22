@@ -6,6 +6,7 @@ export type PasswordResetDeliveryInput = {
   email: string;
   name: string;
   resetToken: string;
+  emailConfirmationCode: string;
 };
 
 export interface PasswordResetDelivery {
@@ -63,6 +64,7 @@ export class WebhookPasswordResetDelivery implements PasswordResetDelivery {
         event: 'password_reset_requested',
         recipient: { email: input.email, name: input.name },
         resetUrl: resetUrl.toString(),
+        emailConfirmationCode: input.emailConfirmationCode,
       }),
       cache: 'no-store',
       redirect: 'error',

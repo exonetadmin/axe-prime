@@ -15,6 +15,7 @@ import {
   parseAuthJson,
   resetAuthRateLimit,
 } from '../_http';
+import { tryRecordSecurityAuditEvent } from '@/src/server/security/audit-log';
 
 export async function POST(request: Request) {
   try {
@@ -32,22 +33,42 @@ export async function POST(request: Request) {
     const response = authJson({
       success: true,
       user: result.user,
-      accessToken: result.accessToken,
-      tokenType: 'Bearer',
       expiresIn: Math.max(
         0,
         Math.floor((result.accessTokenExpiresAt.getTime() - Date.now()) / 1000)
       ),
       expiresAt: result.accessTokenExpiresAt.toISOString(),
     });
-    return authService.attachSessionCookies(response, result);
+    const responseWithCookies = await authService.attachSessionCookies(response, result);
+    await tryRecordSecurityAuditEvent({
+      category: 'authentication',
+      action: 'user_login',
+      outcome: 'success',
+      actorType: 'user',
+      actorId: result.user.id,
+      subjectType: 'auth_session',
+      subjectId: result.sessionId,
+    });
+    return responseWithCookies;
   } catch (error: unknown) {
     const common = commonAuthError(error);
     if (common) return common;
     if (error instanceof InvalidCredentialsError) {
+      await tryRecordSecurityAuditEvent({
+        category: 'authentication',
+        action: 'user_login',
+        outcome: 'failure',
+        actorType: 'anonymous',
+      });
       return authJson({ error: 'E-mail ou senha incorretos.' }, { status: 401 });
     }
     if (error instanceof AccountDisabledError) {
+      await tryRecordSecurityAuditEvent({
+        category: 'authentication',
+        action: 'user_login_disabled',
+        outcome: 'denied',
+        actorType: 'anonymous',
+      });
       return authJson({ error: 'Esta conta está desativada.' }, { status: 403 });
     }
     if (error instanceof ValidationError) {

@@ -11,7 +11,7 @@ describe('Login Schema', () => {
   it('should validate correct login data', () => {
     const result = loginSchema.safeParse({
       email: 'test@example.com',
-      password: 'password123',
+      password: 'Abcdef1!',
     });
     expect(result.success).toBe(true);
   });
@@ -19,7 +19,7 @@ describe('Login Schema', () => {
   it('should reject invalid email', () => {
     const result = loginSchema.safeParse({
       email: 'not-an-email',
-      password: 'password123',
+      password: 'Abcdef1!',
     });
     expect(result.success).toBe(false);
   });
@@ -38,7 +38,7 @@ describe('Register Schema', () => {
     const result = registerSchema.safeParse({
       name: 'John Doe',
       email: 'john@example.com',
-      password: 'uma frase senha bem longa',
+      password: 'Abe123!x',
       phone: '(11) 99999-9999',
       referralCode: 'AP-ABCDEFGH',
       planInterest: 'prime',
@@ -50,7 +50,7 @@ describe('Register Schema', () => {
     const result = registerSchema.safeParse({
       name: 'J',
       email: 'john@example.com',
-      password: 'uma frase senha bem longa',
+      password: 'Abe123!x',
       phone: '(11) 99999-9999',
       referralCode: 'AP-ABCDEFGH',
     });
@@ -61,7 +61,7 @@ describe('Register Schema', () => {
     const result = registerSchema.safeParse({
       name: 'John Doe',
       email: 'john@example.com',
-      password: 'uma frase senha bem longa',
+      password: 'Abe123!x',
       phone: '(11) 99999-9999',
       referralCode: 'AP-ABCDEFGH',
     });
@@ -89,18 +89,27 @@ describe('Reset Request Schema', () => {
 });
 
 describe('Reset Password Schema', () => {
+  it('rejects common long passwords that satisfy the length requirement', () => {
+    expect(
+      resetPasswordSchema.safeParse({
+        password: 'passwordpassword',
+        confirmPassword: 'passwordpassword',
+      }).success
+    ).toBe(false);
+  });
+
   it('should validate matching passwords', () => {
     const result = resetPasswordSchema.safeParse({
-      password: 'uma nova frase senha longa',
-      confirmPassword: 'uma nova frase senha longa',
+      password: 'Abe123!x',
+      confirmPassword: 'Abe123!x',
     });
     expect(result.success).toBe(true);
   });
 
   it('should reject mismatching passwords', () => {
     const result = resetPasswordSchema.safeParse({
-      password: 'uma nova frase senha longa',
-      confirmPassword: 'outra frase senha bem longa',
+      password: 'Abe123!x',
+      confirmPassword: 'Abe123!y',
     });
     expect(result.success).toBe(false);
   });
@@ -114,8 +123,15 @@ describe('Reset Password Schema', () => {
     ).toBe(false);
     expect(
       resetPasswordSchema.safeParse({
-        password: '🔐'.repeat(15),
-        confirmPassword: '🔐'.repeat(15),
+        password: '🔐'.repeat(8) + 'A1!',
+        confirmPassword: '🔐'.repeat(8) + 'A1!',
+      }).success
+    ).toBe(true);
+    const variedUnicode = '😀😁😂😃😄😅😆😉😊😋😎😍😘🥰🤩';
+    expect(
+      resetPasswordSchema.safeParse({
+        password: `${variedUnicode}A1!`,
+        confirmPassword: `${variedUnicode}A1!`,
       }).success
     ).toBe(true);
   });
@@ -124,15 +140,37 @@ describe('Reset Password Schema', () => {
     expect(
       resetPasswordConfirmSchema.safeParse({
         token: 'r'.repeat(64),
-        password: 'uma nova frase senha longa',
-        confirmPassword: 'uma nova frase senha longa',
+        email: 'user@example.com',
+        emailConfirmationCode: '123456',
+        password: 'Abe123!x',
+        confirmPassword: 'Abe123!x',
       }).success
     ).toBe(true);
     expect(
       resetPasswordConfirmSchema.safeParse({
         token: 'token-curto',
-        password: 'uma nova frase senha longa',
-        confirmPassword: 'uma nova frase senha longa',
+        email: 'user@example.com',
+        emailConfirmationCode: '123456',
+        password: 'Abe123!x',
+        confirmPassword: 'Abe123!x',
+      }).success
+    ).toBe(false);
+    expect(
+      resetPasswordConfirmSchema.safeParse({
+        token: 'r'.repeat(64),
+        email: 'bad email',
+        emailConfirmationCode: '123456',
+        password: 'Abe123!x',
+        confirmPassword: 'Abe123!x',
+      }).success
+    ).toBe(false);
+    expect(
+      resetPasswordConfirmSchema.safeParse({
+        token: 'r'.repeat(64),
+        email: 'user@example.com',
+        emailConfirmationCode: '12345',
+        password: 'Abe123!x',
+        confirmPassword: 'Abe123!x',
       }).success
     ).toBe(false);
   });

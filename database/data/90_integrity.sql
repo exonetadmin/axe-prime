@@ -92,7 +92,9 @@ BEGIN
       ('public.admin_users'::regclass, 'admin_users_token_version_check',
         $constraint$CHECK (token_version >= 0)$constraint$),
       ('public.admin_users'::regclass, 'admin_users_password_hash_check',
-        $constraint$CHECK (length(password_hash) >= 20)$constraint$)
+        $constraint$CHECK (length(password_hash) >= 20)$constraint$),
+      ('public.admin_users'::regclass, 'admin_users_mfa_state_check',
+        $constraint$CHECK (NOT mfa_enabled OR mfa_secret_encrypted IS NOT NULL)$constraint$)
     ) AS constraints_to_add(table_oid, constraint_name, definition)
   LOOP
     IF NOT EXISTS (

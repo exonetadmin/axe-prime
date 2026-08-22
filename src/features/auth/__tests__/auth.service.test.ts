@@ -87,7 +87,6 @@ describe('AuthService', () => {
     revokeSession: vi.fn(),
     revokeByRefreshToken: vi.fn(),
     createPasswordResetToken: vi.fn(),
-    findActivePasswordResetUser: vi.fn(),
     invalidatePasswordResetToken: vi.fn(),
     consumePasswordResetToken: vi.fn(),
   };
@@ -123,9 +122,9 @@ describe('AuthService', () => {
       tokenVersion: record.token_version,
     });
     sessionRepo.validateAccessSession.mockResolvedValue(true);
-    sessionRepo.findActivePasswordResetUser.mockResolvedValue(record.id);
     sessionRepo.findRefreshSessionId.mockResolvedValue('11111111-1111-4111-8111-111111111111');
     sessionRepo.createPasswordResetToken.mockResolvedValue('r'.repeat(64));
+    sessionRepo.consumePasswordResetToken.mockResolvedValue(record.id);
     resetDelivery.isConfigured.mockReturnValue(true);
     resetDelivery.deliver.mockResolvedValue(undefined);
     service = new AuthService(
@@ -138,7 +137,7 @@ describe('AuthService', () => {
   it('issues a short access token and an opaque refresh token on login', async () => {
     const result = await service.login({
       email: ' TEST@EXAMPLE.COM ',
-      password: 'correct horse battery staple',
+      password: 'Abcdef1!',
     });
 
     expect(result.user.email).toBe('test@example.com');
@@ -207,7 +206,7 @@ describe('AuthService', () => {
     const result = await service.register({
       name: 'New User',
       email: 'NEW@example.com',
-      password: 'uma frase senha bem longa',
+      password: 'Abc123!x',
       phone: '(11) 99999-9999',
       planInterest: null,
       referralCode: 'AP-SPONSOR1',
@@ -224,7 +223,7 @@ describe('AuthService', () => {
       service.register({
         name: 'New User',
         email: 'new@example.com',
-        password: 'uma frase senha bem longa',
+        password: 'Abc123!x',
         phone: '(11) 99999-9999',
         referralCode: 'AP-ZZZZZZZZ',
       })
@@ -236,20 +235,20 @@ describe('AuthService', () => {
       service.register({
         name: 'New User',
         email: 'test@example.com',
-        password: 'uma frase senha bem longa',
+        password: 'Abc123!x',
         phone: '(11) 99999-9999',
         referralCode: 'AP-SPONSOR1',
       })
     ).rejects.toThrow(EmailExistsError);
   });
 
-  it('rejects new passwords shorter than 15 characters', async () => {
+  it('rejects new passwords shorter than 8 characters', async () => {
     userRepo.findByEmail.mockResolvedValue(null);
     await expect(
       service.register({
         name: 'New User',
         email: 'new@example.com',
-        password: 'short password',
+        password: 'A1!x',
         phone: '(11) 99999-9999',
         referralCode: 'AP-SPONSOR1',
       })
@@ -312,7 +311,7 @@ describe('AuthService', () => {
   it('validates both JWT and revocable sid for backend requests', async () => {
     const login = await service.login({
       email: 'test@example.com',
-      password: 'correct horse battery staple',
+      password: 'Abcdef1!',
     });
     const request = new Request('https://axe.example/api/private', {
       headers: { Authorization: `Bearer ${login.accessToken}` },
@@ -326,10 +325,25 @@ describe('AuthService', () => {
     );
   });
 
-  it('rejects an invalid or expired password reset token', async () => {
+  it('requires the e-mail and confirmation code to reset the password', async () => {
+    sessionRepo.consumePasswordResetToken.mockResolvedValue(record.id);
+    await expect(
+      service.resetPassword(
+        'r'.repeat(64),
+        record.email,
+        '123456',
+        'Abc123!x'
+      )
+    ).resolves.toBeUndefined();
+
     sessionRepo.consumePasswordResetToken.mockResolvedValue(null);
     await expect(
-      service.resetPassword('invalid-token', 'uma frase senha bem longa')
+      service.resetPassword(
+        'r'.repeat(64),
+        record.email,
+        '123456',
+        'Abc123!x'
+      )
     ).rejects.toThrow(InvalidTokenError);
   });
 
@@ -347,6 +361,7 @@ describe('AuthService', () => {
       email: record.email,
       name: record.name,
       resetToken: 'r'.repeat(64),
+      emailConfirmationCode: expect.stringMatching(/^\d{6}$/),
     });
   });
 

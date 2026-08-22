@@ -31,8 +31,10 @@ type ResetRequestState = {
 };
 
 type NewPasswordState = {
+  email: string;
   password: string;
   confirmPassword: string;
+  emailConfirmationCode: string;
 };
 
 type AuthResponsePayload = {
@@ -67,8 +69,10 @@ const initialResetRequestState: ResetRequestState = {
 };
 
 const initialNewPasswordState: NewPasswordState = {
+  email: '',
   password: '',
   confirmPassword: '',
+  emailConfirmationCode: '',
 };
 
 const REFERRAL_STORAGE_KEY = 'axe.referralCode';
@@ -498,7 +502,47 @@ export default function AuthPanel({ initialMode, initialReferralCode = null }: A
           </p>
         </form>
       ) : (mode as string) === 'new-password' ? (
-        <form className="form-grid" onSubmit={handleNewPassword}>
+      <form className="form-grid" onSubmit={handleNewPassword}>
+          <div className="field">
+            <label htmlFor="reset-email">E-mail cadastrado</label>
+            <input
+              id="reset-email"
+              type="email"
+              name="email"
+              autoComplete="email"
+              value={newPasswordState.email}
+              onChange={event =>
+                setNewPasswordState(current => ({
+                  ...current,
+                  email: event.target.value,
+                }))
+              }
+              placeholder="voce@axeprime.com.br"
+              required
+            />
+          </div>
+
+          <div className="field">
+            <label htmlFor="email-confirmation-code">Código enviado para o e-mail</label>
+            <input
+              id="email-confirmation-code"
+              type="text"
+              name="emailConfirmationCode"
+              inputMode="numeric"
+              pattern="\\d{6}"
+              maxLength={6}
+              value={newPasswordState.emailConfirmationCode}
+              onChange={event =>
+                setNewPasswordState(current => ({
+                  ...current,
+                  emailConfirmationCode: event.target.value.replace(/\\D/g, ''),
+                }))
+              }
+              placeholder="Digite o código de 6 dígitos"
+              required
+            />
+          </div>
+
           <div className="field">
             <label htmlFor="new-password">Nova senha</label>
             <input
@@ -513,7 +557,7 @@ export default function AuthPanel({ initialMode, initialReferralCode = null }: A
                   password: event.target.value,
                 }))
               }
-              placeholder="Mínimo de 15 caracteres"
+              placeholder="Mínimo de 8 caracteres (letra, número e caractere especial)"
               required
             />
           </div>

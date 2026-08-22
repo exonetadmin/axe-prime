@@ -14,9 +14,68 @@ const SCRYPT_P = 1;
 const SCRYPT_KEY_LENGTH = 64;
 const SCRYPT_MAX_MEMORY = 256 * 1024 * 1024;
 const SCRYPT_SALT_LENGTH = 16;
-const MINIMUM_PASSWORD_LENGTH = 15;
+const MINIMUM_PASSWORD_LENGTH = 8;
 const MAXIMUM_PASSWORD_LENGTH = 128;
 const ADMIN_ROLES = new Set(['master', 'financeiro', 'suporte']);
+const COMMON_PASSWORD_ROOTS = [
+  'admin',
+  'administrador',
+  'axeprime',
+  'changeme',
+  'letmein',
+  'password',
+  'qwerty',
+  'senha',
+  'welcome',
+];
+
+function foldPasswordValue(value) {
+  return value
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('pt-BR')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+function isUnsafeBootstrapPassword(password, options) {
+  const compact = foldPasswordValue(password);
+  if (
+    new Set([
+      '123456789012345',
+      'adminadminadmin',
+      'administrador123',
+      'axeprimeaxeprime',
+      'changemechangeme',
+      'passwordpassword',
+      'qwertyqwerty123',
+      'senhasenhasenha',
+      'welcome123456789',
+    ]).has(compact)
+  ) {
+    return true;
+  }
+  if (/^(.)\1{14,}$/.test(compact) || /^(.{1,8})\1{2,}$/.test(compact)) return true;
+  if (/^(?:0123456789|1234567890|9876543210){2,}$/.test(compact)) return true;
+  for (const root of COMMON_PASSWORD_ROOTS) {
+    if (compact === root || new RegExp(`^(?:${root}){2,}[0-9]*$`).test(compact)) return true;
+    if (compact.startsWith(root) && /^\d{1,8}$/.test(compact.slice(root.length))) return true;
+  }
+  for (const raw of ['axe prime', options.name, options.email.split('@')[0] ?? '']) {
+    const context = foldPasswordValue(raw);
+    if (context.length < 4) continue;
+    const remainder = compact.replace(context, '');
+    if (compact === context || (remainder !== compact && /^\d{0,8}$/.test(remainder))) return true;
+  }
+  return false;
+}
+
+function hasMinimumComposition(password) {
+  return (
+    /\p{L}/u.test(password) &&
+    /\p{N}/u.test(password) &&
+    /[^\p{L}\p{N}\s]/u.test(password)
+  );
+}
 
 function usage() {
   return `
@@ -160,6 +219,9 @@ async function readConfirmedPassword(options) {
         `${MAXIMUM_PASSWORD_LENGTH} caracteres.`
     );
   }
+  if (!hasMinimumComposition(normalizedPassword)) {
+    throw new Error('A senha deve conter pelo menos uma letra, um número e um caractere especial.');
+  }
 
   const foldedPassword = normalizedPassword.toLocaleLowerCase('pt-BR');
   if (
@@ -167,6 +229,9 @@ async function readConfirmedPassword(options) {
     foldedPassword === options.name.normalize('NFC').toLocaleLowerCase('pt-BR')
   ) {
     throw new Error('A senha não pode ser igual ao nome ou ao e-mail.');
+  }
+  if (isUnsafeBootstrapPassword(normalizedPassword, options)) {
+    throw new Error('Escolha uma senha menos comum e sem dados do administrador ou da empresa.');
   }
 
   return normalizedPassword;

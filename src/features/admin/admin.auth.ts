@@ -9,6 +9,9 @@ import { maybePruneExpiredAuthRecords } from '@/src/server/security/auth-record-
 import { getSessionContextFromHeaders } from '@/src/server/security/request';
 import {
   ACCESS_TOKEN_TTL_SECONDS,
+  ADMIN_ACCESS_TOKEN_COOKIE,
+  ADMIN_CSRF_TOKEN_COOKIE,
+  ADMIN_REFRESH_TOKEN_COOKIE,
   REFRESH_TOKEN_TTL_SECONDS,
   createCsrfToken,
   createRefreshToken,
@@ -18,11 +21,20 @@ import {
   verifyAccessToken,
   type VerifiedAccessToken,
 } from '@/src/server/security/tokens';
+import {
+  decryptTotpSecret,
+  hashTotpChallenge,
+  randomTotpChallengeId,
+  verifyTotpToken,
+} from '@/src/server/security/totp';
 import type { AdminRole, AdminUser, AuthenticatedAdminUser } from './admin.types';
+import { tryRecordSecurityAuditEvent } from '@/src/server/security/audit-log';
 
-export const ADMIN_ACCESS_COOKIE = 'axeprime_admin_access_token';
-export const ADMIN_REFRESH_COOKIE = 'axeprime_admin_refresh_token';
-export const ADMIN_CSRF_COOKIE = 'axeprime_admin_csrf_token';
+// Admin cookies are limited to /admin, so __Secure- is the applicable prefix
+// (__Host- would require Path=/). Local HTTP development keeps plain names.
+export const ADMIN_ACCESS_COOKIE = ADMIN_ACCESS_TOKEN_COOKIE;
+export const ADMIN_REFRESH_COOKIE = ADMIN_REFRESH_TOKEN_COOKIE;
+export const ADMIN_CSRF_COOKIE = ADMIN_CSRF_TOKEN_COOKIE;
 const LEGACY_ADMIN_COOKIE = 'admin_session';
 const ADMIN_COOKIE_PATH = '/admin';
 
@@ -36,6 +48,31 @@ type ActiveAdminSessionRow = AdminUser & {
 type AdminRefreshOwnerRow = {
   session_id: string;
   admin_user_id: string | null;
+};
+
+type AdminMfaChallengeRow = {
+  id: string;
+  token_hash: string;
+  admin_user_id: string;
+  token_version: number;
+  failed_attempts: number;
+  consumed_at: Date | string | null;
+  expires_at: Date | string;
+};
+
+type AdminMfaChallengeStateRow = AdminMfaChallengeRow & {
+  database_now: Date | string;
+};
+
+type AdminMfaUserRow = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  active: boolean;
+  token_version: number;
+  mfa_enabled: boolean;
+  mfa_secret_encrypted: string | null;
 };
 
 type LockedAdminRow = AdminUser & {
@@ -71,7 +108,14 @@ export type AdminRefreshResult =
   | { status: 'already_rotated' }
   | { status: 'invalid' | 'replayed' };
 
+export type AdminLoginResult =
+  | { ok: true; redirectTo: '/admin' }
+  | { ok: false; requiresTotp: true; challengeToken: string; userName: string }
+  | { ok: false; error: string };
+
 const ADMIN_REFRESH_REUSE_GRACE_MILLISECONDS = 10_000;
+const ADMIN_MFA_CHALLENGE_TTL_SECONDS = 300;
+const ADMIN_MFA_MAX_ATTEMPTS = 10;
 
 export class AdminAuthorizationError extends Error {
   readonly status: 401 | 403;
@@ -232,6 +276,187 @@ export async function validateAdminCredentials(
 ): Promise<AuthenticatedAdminUser | null> {
   const { configRepository } = await import('./config.repository');
   return configRepository.validateCredentials(email, password);
+}
+
+function asDate(value: Date | string | null | undefined): Date | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isFinite(date.getTime()) ? date : null;
+}
+
+function genericAuthFailure(): never {
+  throw new Error('Falha na autenticação.');
+}
+
+/**
+ * Cria um desafio de login em 2 fatores e retorna apenas o token de uso único.
+ * O token fica gravado em hash apenas e é validado na etapa seguinte.
+ */
+export async function createAdminMfaChallenge(user: AuthenticatedAdminUser): Promise<string> {
+  const challengeToken = randomTotpChallengeId();
+  const challengeHash = hashTotpChallenge(challengeToken);
+
+  await withTransaction(async client => {
+    const rows = await client.query<AdminMfaUserRow>(
+      `SELECT id, name, email, role, active, token_version, mfa_enabled, mfa_secret_encrypted
+         FROM public.admin_users
+        WHERE id = $1
+        FOR UPDATE`,
+      [user.id]
+    );
+    const admin = rows.rows[0];
+    if (
+      !admin ||
+      !isAdminRole(admin.role) ||
+      !admin.active ||
+      !admin.mfa_enabled ||
+      !admin.mfa_secret_encrypted ||
+      admin.token_version !== user.tokenVersion
+    ) {
+      genericAuthFailure();
+    }
+
+    await client.query(`DELETE FROM public.admin_mfa_challenges WHERE admin_user_id = $1`, [admin.id]);
+    await client.query(
+      `INSERT INTO public.admin_mfa_challenges
+         (admin_user_id, token_hash, token_version, expires_at)
+       VALUES ($1::text, $2, $3, NOW() + ($4::integer * INTERVAL '1 second'))`,
+      [admin.id, challengeHash, admin.token_version, ADMIN_MFA_CHALLENGE_TTL_SECONDS]
+    );
+  });
+
+  return challengeToken;
+}
+
+/**
+ * Valida o token TOTP e finaliza login em duas etapas.
+ * Retorna as credenciais administrativas para criação da sessão.
+ */
+export async function verifyAdminMfaChallenge(
+  challengeToken: string,
+  oneTimeCode: string
+): Promise<AuthenticatedAdminUser> {
+  const challengeHash = hashTotpChallenge(challengeToken);
+  const normalizedCode = String(oneTimeCode ?? '').replace(/\s+/g, '');
+
+  if (!/^\d{6}$/.test(normalizedCode)) {
+    genericAuthFailure();
+  }
+
+  const payload = await withTransaction(async client => {
+    const challengeResult = await client.query<AdminMfaChallengeStateRow>(
+      `SELECT c.id::text AS id,
+              c.admin_user_id,
+              c.token_version,
+              c.failed_attempts,
+              c.consumed_at,
+              c.expires_at,
+              clock_timestamp() AS database_now
+         FROM public.admin_mfa_challenges AS c
+        WHERE c.token_hash = $1
+        LIMIT 1
+        FOR UPDATE`,
+      [challengeHash]
+    );
+    const challenge = challengeResult.rows[0];
+    if (!challenge) genericAuthFailure();
+
+    const databaseNow = asDate(challenge.database_now) ?? new Date();
+    const expiresAt = asDate(challenge.expires_at);
+    const consumedAt = asDate(challenge.consumed_at);
+
+    if (!expiresAt) {
+      await client.query(`DELETE FROM public.admin_mfa_challenges WHERE token_hash = $1`, [challengeHash]);
+      genericAuthFailure();
+    }
+
+    if (consumedAt && consumedAt.getTime() <= databaseNow.getTime()) {
+      genericAuthFailure();
+    }
+
+    if (expiresAt.getTime() <= databaseNow.getTime()) {
+      await client.query(
+        `UPDATE public.admin_mfa_challenges
+            SET consumed_at = COALESCE(consumed_at, NOW())
+          WHERE id = $1::uuid`,
+        [challenge.id]
+      );
+      genericAuthFailure();
+    }
+
+    if (challenge.failed_attempts >= ADMIN_MFA_MAX_ATTEMPTS) {
+      genericAuthFailure();
+    }
+
+    const userResult = await client.query<AdminMfaUserRow>(
+      `SELECT id, name, email, role, active, token_version, mfa_enabled, mfa_secret_encrypted
+         FROM public.admin_users
+        WHERE id = $1
+        FOR UPDATE`,
+      [challenge.admin_user_id]
+    );
+    const user = userResult.rows[0];
+    if (
+      !user ||
+      !isAdminRole(user.role) ||
+      !user.active ||
+      !user.mfa_enabled ||
+      !user.mfa_secret_encrypted ||
+      user.token_version !== challenge.token_version
+    ) {
+      await client.query(
+        `UPDATE public.admin_mfa_challenges
+            SET consumed_at = COALESCE(consumed_at, NOW())
+          WHERE id = $1::uuid`,
+        [challenge.id]
+      );
+      genericAuthFailure();
+    }
+
+    let secret: string;
+    try {
+      secret = decryptTotpSecret(user.mfa_secret_encrypted);
+    } catch {
+      await client.query(
+        `UPDATE public.admin_mfa_challenges
+            SET consumed_at = COALESCE(consumed_at, NOW())
+          WHERE id = $1::uuid`,
+        [challenge.id]
+      );
+      genericAuthFailure();
+    }
+
+    const tokenValid = verifyTotpToken(secret, normalizedCode);
+    if (!tokenValid) {
+      const failedAttempts = challenge.failed_attempts + 1;
+      await client.query(
+        `UPDATE public.admin_mfa_challenges
+            SET failed_attempts = LEAST($2, 100),
+                consumed_at = CASE WHEN $3 THEN NOW() ELSE consumed_at END
+          WHERE id = $1::uuid`,
+        [challenge.id, failedAttempts, failedAttempts >= ADMIN_MFA_MAX_ATTEMPTS]
+      );
+      genericAuthFailure();
+    }
+
+    await client.query(
+      `UPDATE public.admin_mfa_challenges
+          SET consumed_at = NOW()
+        WHERE id = $1::uuid`,
+      [challenge.id]
+    );
+
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      tokenVersion: user.token_version,
+      mfaEnabled: user.mfa_enabled,
+    };
+  });
+
+  return payload;
 }
 
 /** Create a revocable DB session plus a signed short-lived access JWT. */
@@ -541,6 +766,14 @@ export async function requireAdmin(allowedRoles?: readonly AdminRole[]): Promise
   const admin = await getAdminSession();
   if (!admin) throw new AdminAuthorizationError();
   if (allowedRoles && !allowedRoles.includes(admin.role)) {
+    await tryRecordSecurityAuditEvent({
+      category: 'authorization',
+      action: 'admin_role_denied',
+      outcome: 'denied',
+      actorType: 'admin',
+      actorId: admin.id,
+      metadata: { role: admin.role, allowedRoles: allowedRoles.join(',') },
+    });
     throw new AdminAuthorizationError('Sem permissão para esta operação.', 403);
   }
   return admin;

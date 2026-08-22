@@ -38,8 +38,6 @@ export async function POST(request: Request) {
         success: true,
         message: 'Cadastro realizado com sucesso.',
         user: result.user,
-        accessToken: result.accessToken,
-        tokenType: 'Bearer',
         expiresIn: Math.max(
           0,
           Math.floor((result.accessTokenExpiresAt.getTime() - Date.now()) / 1000)

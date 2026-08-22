@@ -14,9 +14,14 @@ export type AdminUser = {
   role: AdminRole;
 };
 
+export type AdminUserWithMfa = AdminUser & {
+  mfaEnabled: boolean;
+};
+
 /** Identity bound to the exact credential version that passed password verification. */
 export type AuthenticatedAdminUser = AdminUser & {
   tokenVersion: number;
+  mfaEnabled: boolean;
 };
 
 /** All navigable module keys in the admin panel */
@@ -29,6 +34,7 @@ export type AdminModule =
   | 'comissoes'
   | 'cashback'
   | 'rede'
+  | 'seguranca'
   | 'configuracoes'
   | 'planos';
 
@@ -43,11 +49,12 @@ export const ROLE_PERMISSIONS: Record<AdminRole, AdminModule[]> = {
     'comissoes',
     'cashback',
     'rede',
+    'seguranca',
     'configuracoes',
     'planos',
   ],
-  financeiro: ['dashboard', 'saques', 'pix', 'extrato', 'planos'],
-  suporte: ['dashboard', 'usuarios'],
+  financeiro: ['dashboard', 'saques', 'pix', 'extrato', 'planos', 'seguranca'],
+  suporte: ['dashboard', 'usuarios', 'seguranca'],
 };
 
 export const ROLE_LABELS: Record<AdminRole, string> = {

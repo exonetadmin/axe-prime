@@ -1,25 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 
 import ScrollProgress from "@/components/scroll-progress";
 import { seoCopy } from "@/lib/seo-copy";
 import { siteUrl } from "@/lib/site-content";
 
 import "./globals.css";
-
-const display = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  variable: "--font-display",
-  weight: ["500", "600", "700", "800"],
-  display: "swap",
-});
-
-const sans = Inter({
-  subsets: ["latin"],
-  variable: "--font-sans",
-  weight: ["400", "500", "600", "700", "800"],
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -99,7 +84,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
-      <body className={`${display.variable} ${sans.variable}`}>
+      <body>
         <ScrollProgress />
         {children}
       </body>

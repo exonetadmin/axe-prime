@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getAdminSession } from '@/src/features/admin/admin.auth';
+import { canAccess } from '@/src/features/admin/admin.types';
 import AdminModuleGate from '@/app/admin/_components/admin-module-gate';
 import { planRequestsRepository } from '@/src/features/plans/plan-requests.repository';
 import AdminPlanosClient from './admin-planos-client';
@@ -14,6 +15,9 @@ export default async function AdminPlanosPage({
 }) {
   const session = await getAdminSession();
   if (!session) redirect('/admin/login');
+  if (!canAccess(session.role, 'planos')) {
+    return <AdminModuleGate module="planos" title="Planos" />;
+  }
 
   const params = await searchParams;
   const statusFilter = (params?.status ?? 'pending') as 'pending' | 'approved' | 'rejected' | 'all';

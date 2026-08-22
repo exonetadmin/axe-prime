@@ -48,8 +48,6 @@ export default function CashbackMonthsPopup({
     const fd = new FormData();
     fd.set('userId', user.userId);
     fd.set('monthNumber', String(month));
-    fd.set('amountCents', String(user.cbMonthCents));
-    fd.set('paidBy', 'admin');
 
     startTransition(async () => {
       const action = isPaid ? unmarkCashbackMonthAction : markCashbackMonthAction;

@@ -419,7 +419,7 @@ function AdminUserRow({
                 name="password"
                 type="password"
                 autoComplete="new-password"
-                minLength={15}
+                minLength={8}
                 maxLength={128}
                 placeholder="Nova senha (opcional)"
               />
@@ -479,9 +479,9 @@ function AddAdminForm({ action }: { action: typeof addAdminUserAction }) {
           name="password"
           type="password"
           autoComplete="new-password"
-          minLength={15}
+          minLength={8}
           maxLength={128}
-          placeholder="Senha inicial (15–128 caracteres)"
+          placeholder="Senha inicial (8–128 caracteres)"
           required
         />
         <select className="adm-input adm-cfg-input-md" name="role">

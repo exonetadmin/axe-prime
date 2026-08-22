@@ -23,6 +23,7 @@ import {
   Menu,
   X,
   CreditCard,
+  ShieldCheck,
   type LucideIcon,
 } from 'lucide-react';
 import type { AdminRole, AdminModule } from '@/src/features/admin/admin.types';
@@ -49,6 +50,7 @@ const NAV_ITEMS: NavItem[] = [
   { module: 'comissoes',     label: 'Comissões',          href: '/admin/comissoes',     icon: BadgeDollarSign, group: 'financeiro' },
   { module: 'cashback',      label: 'Cashback',           href: '/admin/cashback',      icon: Percent,         group: 'financeiro' },
   { module: 'planos',        label: 'Planos',             href: '/admin/planos',        icon: CreditCard,      group: 'financeiro' },
+  { module: 'seguranca',     label: 'Segurança',          href: '/admin/seguranca',    icon: ShieldCheck,     group: 'sistema'    },
   { module: 'configuracoes', label: 'Configurações',      href: '/admin/configuracoes', icon: Settings,        group: 'sistema'    },
 ];
 

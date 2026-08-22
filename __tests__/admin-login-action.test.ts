@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   consumeGlobal: vi.fn(),
   consumeIdentity: vi.fn(),
   validateCredentials: vi.fn(),
+  createAdminSession: vi.fn(),
+  verifyTotp: vi.fn(),
 }));
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
@@ -19,10 +21,12 @@ vi.mock('@/src/features/admin/admin.auth', () => ({
   clearAdminLoginRateLimit: vi.fn(),
   consumeAdminLoginGlobalRateLimit: mocks.consumeGlobal,
   consumeAdminLoginRateLimit: mocks.consumeIdentity,
-  createAdminSession: vi.fn(),
+  createAdminSession: mocks.createAdminSession,
   destroyAdminSession: vi.fn(),
   requireAdmin: vi.fn(),
   validateAdminCredentials: mocks.validateCredentials,
+  createAdminMfaChallenge: vi.fn(),
+  verifyAdminMfaChallenge: mocks.verifyTotp,
 }));
 
 import { adminLoginAction } from '../app/admin/actions';
@@ -43,6 +47,7 @@ describe('adminLoginAction input limits', () => {
     form.set('password', password);
 
     await expect(adminLoginAction(form)).resolves.toEqual({
+      ok: false,
       error: 'E-mail ou senha inválidos.',
     });
     expect(mocks.consumeGlobal).not.toHaveBeenCalled();
