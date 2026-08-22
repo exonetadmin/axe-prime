@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useId, useCallback, useEffect } from 'react';
+import { useState, useId, useCallback, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api-client';
@@ -303,11 +303,18 @@ export default function WalletClient({
     : localTxs.filter((t) => t.status === activeTab);
 
   const router = useRouter();
+  const pendingWithdrawal = useRef<{ amountCents: number; key: string } | null>(null);
 
   const handleConfirm = useCallback(async (amountCents: number) => {
+    if (!pendingWithdrawal.current || pendingWithdrawal.current.amountCents !== amountCents) {
+      pendingWithdrawal.current = { amountCents, key: crypto.randomUUID() };
+    }
     const response = await apiFetch('/api/v1/withdrawals', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotency-Key': pendingWithdrawal.current.key,
+      },
       body: JSON.stringify({ amountCents }),
     });
     const result = (await response.json()) as { ok?: boolean; message?: string };
@@ -328,6 +335,7 @@ export default function WalletClient({
         date: dateStr,
       };
       setLocalTxs((prev) => [optimisticTx, ...prev]);
+      pendingWithdrawal.current = null;
       setModalOpen(false);
       router.refresh();
     } else {

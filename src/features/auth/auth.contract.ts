@@ -71,10 +71,15 @@ export interface AuthContract {
   requestPasswordReset(email: string): Promise<void>;
 
   /**
-   * Reset password with token
+   * Reset password with token + e-mail + confirmation code
    * @throws {InvalidTokenError} When token is invalid or expired
    */
-  resetPassword(token: string, newPassword: string): Promise<void>;
+  resetPassword(
+    token: string,
+    email: string,
+    emailConfirmationCode: string,
+    newPassword: string
+  ): Promise<void>;
 }
 
 export type User = {

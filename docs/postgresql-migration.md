@@ -1,17 +1,17 @@
 # Migração PostgreSQL
 
-Os scripts `npm run db:migrate`, `npm run admin:create` e
-`npm run avatars:migrate` leem `.env.local` e usam
+Os scripts `npm run db:migrate`, `npm run migrationup`, `npm run admin:create` e
+`npm run avatars:migrate` leem `.env` e `.env.local` (se existirem), usando
 `DATABASE_SSL_MODE`/`DATABASE_CA_CERT`. Os utilitários libpq (`pg_dump` e
 `pg_restore`) não leem essas variáveis da aplicação; configure TLS também no
 serviço libpq usado pelos comandos abaixo.
 
 Em produção, use credenciais PostgreSQL separadas: `DATABASE_URL` para a
-aplicação (sem permissão de DDL), `DATABASE_MIGRATION_URL` para o dono/migrador
-do schema. O bootstrap administrativo também usa a credencial migradora, mas
-somente no processo pontual; nunca disponibilize essa URL ao runtime da
-aplicação. Em desenvolvimento, os scripts caem em `DATABASE_URL` quando a URL
-migradora fica vazia.
+aplicação e `DATABASE_MIGRATION_URL` para o dono/migrador do schema.
+O bootstrap administrativo também usa a credencial migradora, mas somente no
+processo pontual; nunca disponibilize essa URL ao runtime da aplicação.
+Em desenvolvimento, os scripts caem em `DATABASE_URL` quando a URL migradora fica
+vazia.
 
 No deploy web de produção, o ambiente persistente deve conter somente
 `DATABASE_URL`. Injete `DATABASE_MIGRATION_URL` exclusivamente no job de
@@ -19,19 +19,12 @@ migration/bootstrap e `DATABASE_AVATAR_IMPORT_URL` somente no job de importaçã
 remova-as ao terminar. Não grave URLs privilegiadas no `.env.local` empacotado
 ou montado no servidor Next.
 
-Crie previamente pelo provedor/DBA uma role `LOGIN` exclusiva para a aplicação,
-conceda a ela somente `CONNECT` no banco e informe seu nome em
-`DATABASE_RUNTIME_ROLE`; não grave a senha em SQL nem no repositório. A role
-não pode ser dona do banco, schema ou tabelas, ter atributos administrativos ou
-ser membro da role migradora. Ao fim de cada `db:migrate`, o runner revoga
-privilégios públicos, concede somente `USAGE` e DML nas tabelas/sequências
-atuais, configura os mesmos privilégios padrão para objetos futuros e retira
-qualquer acesso a `schema_migrations`. A role dona/migradora deve possuir o
-schema `public` e todos os objetos restaurados; ela continua sendo a única com
-DDL. Em produção, as URLs migradora/runtime separadas e
-`DATABASE_RUNTIME_ROLE` são obrigatórias, e o runner confirma que o usuário de
-`DATABASE_URL` corresponde à role informada. Se a role ficar vazia no
-desenvolvimento, o runner avisa e não gerencia grants.
+A role de `DATABASE_MIGRATION_URL` deve possuir a propriedade de dono do schema e
+capacidade de executar DDL. A role de `DATABASE_URL` é a que a aplicação usa em
+runtime; a separação completa por privacidade depende da configuração do seu
+provedor (idealmente ela não deve conter permissão de DDL). O migrador mantém
+as migrations idempotentes e não aplica mais um hardening automático de privilégios
+entre roles em runtime.
 
 `DATABASE_MIGRATION_URL` deve apontar diretamente ao PostgreSQL ou a um pooler
 em modo de sessão. Não use pooler em modo de transação: o runner mantém um
@@ -287,16 +280,30 @@ de produção: isso deixa o checksum sem correspondência com o schema real.
 
 O navegador não acessa PostgreSQL. Route Handlers, Server Actions protegidas e
 repositories `server-only` formam a fronteira backend; todas as consultas usam
-parâmetros. Clientes de API podem enviar o access token curto em
-`Authorization: Bearer`, enquanto o refresh opaco permanece somente em cookie
-`HttpOnly`, é armazenado como HMAC no banco, rotacionado e revogável por sessão.
-Mutações autenticadas por cookie também exigem Origin/Fetch Metadata e CSRF.
+parâmetros. As APIs aceitam um access token curto previamente provisionado em
+`Authorization: Bearer`, mas login/cadastro/refresh do navegador não devolvem o
+token no JSON: access e refresh permanecem em cookies `HttpOnly`. O refresh é
+armazenado como HMAC no banco, rotacionado e revogável por sessão. Mutações
+autenticadas por cookie também exigem Origin/Fetch Metadata e CSRF. Um fluxo de
+credenciais específico para integrações externas ainda não faz parte do produto.
 
 HTTPS é obrigatório na borda e a conexão Node↔PostgreSQL valida o certificado.
 Senhas usam scrypt e tokens não ficam em texto puro. CPF, RG, endereço e chaves
 PIX continuam sendo colunas de texto: habilite criptografia de disco/backup no
 provedor. Criptografia de campo com KMS e rotação de chaves é uma evolução
 separada caso o modelo de ameaça exija proteção contra acesso direto ao banco.
+
+`DATABASE_STATEMENT_TIMEOUT_MS`, `DATABASE_LOCK_TIMEOUT_MS` e
+`DATABASE_IDLE_IN_TRANSACTION_TIMEOUT_MS` limitam consultas e transações do
+runtime. Ajuste-os com testes de carga; jobs longos devem usar uma conexão
+operacional separada, não ampliar o teto de todas as requisições web.
+
+Operações financeiras e eventos principais de autenticação/autorização são
+gravados em `security_audit_events`. A role runtime recebe somente `SELECT` e
+`INSERT` nessa tabela; aprovação de saque/plano, cashback, comissão e criação de
+saque registram o evento na mesma transação da mudança. Exporte esses eventos
+para um sink separado/SIEM e defina retenção e alertas: append-only no mesmo
+banco não protege contra comprometimento da role dona/migradora.
 
 ## Entrega de recuperação de senha
 

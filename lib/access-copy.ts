@@ -118,7 +118,7 @@ export const authScreenCopy: AuthScreenCopy = {
     },
     "new-password": {
       title: "Defina sua nova senha.",
-      description: "Crie uma senha segura para retomar seu acesso com normalidade.",
+      description: "Informe o e-mail, o código de verificação e uma nova senha para concluir.",
       submitLabel: "Redefinir senha",
     },
   },

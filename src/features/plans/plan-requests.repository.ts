@@ -3,12 +3,12 @@
 import 'server-only';
 
 import {
-  execute,
   postgresIntegerToSafeNumber,
   query,
   queryOne,
   withTransaction,
 } from '@/src/server/db/postgres';
+import { appendSecurityAuditEvent } from '@/src/server/security/audit-log';
 
 type PgError = Error & { code?: string; constraint?: string };
 
@@ -292,7 +292,7 @@ class PlanRequestsRepository {
     return result;
   }
 
-  async approveRequest(id: string, reviewedBy: string): Promise<void> {
+  async approveRequest(id: string, reviewedBy: string, actorId: string): Promise<void> {
     await withTransaction(async client => {
       const fetched = await client.query<{
         user_id: string;
@@ -326,20 +326,53 @@ class PlanRequestsRepository {
           WHERE id = $1`,
         [request.user_id, request.requested_plan, request.monthly_investment_cents]
       );
+      await appendSecurityAuditEvent(client, {
+        category: 'financial',
+        action: 'plan_request_approved',
+        outcome: 'success',
+        actorType: 'admin',
+        actorId,
+        subjectType: 'plan_request',
+        subjectId: id,
+        metadata: {
+          requestedPlan: request.requested_plan,
+          monthlyInvestmentCents: request.monthly_investment_cents,
+          userId: request.user_id,
+        },
+      });
     });
   }
 
-  async rejectRequest(id: string, reviewedBy: string, note: string): Promise<void> {
-    const affected = await execute(
-      `UPDATE plan_requests
-          SET status = 'rejected', reviewed_by = $2,
-              reviewed_at = NOW(), review_note = $3
-        WHERE id = $1 AND status = 'pending'`,
-      [id, reviewedBy, note]
-    );
-    if (affected !== 1) {
-      throw new Error('Solicitação não encontrada ou já revisada.');
-    }
+  async rejectRequest(
+    id: string,
+    reviewedBy: string,
+    actorId: string,
+    note: string
+  ): Promise<void> {
+    await withTransaction(async client => {
+      const affected = await client.query<{ user_id: string; requested_plan: PlanInterest }>(
+        `UPDATE plan_requests
+            SET status = 'rejected', reviewed_by = $2,
+                reviewed_at = NOW(), review_note = $3
+          WHERE id = $1 AND status = 'pending'
+          RETURNING user_id, requested_plan`,
+        [id, reviewedBy, note]
+      );
+      const request = affected.rows[0];
+      if (!request) {
+        throw new Error('Solicitação não encontrada ou já revisada.');
+      }
+      await appendSecurityAuditEvent(client, {
+        category: 'financial',
+        action: 'plan_request_rejected',
+        outcome: 'success',
+        actorType: 'admin',
+        actorId,
+        subjectType: 'plan_request',
+        subjectId: id,
+        metadata: { requestedPlan: request.requested_plan, userId: request.user_id },
+      });
+    });
   }
 }
 

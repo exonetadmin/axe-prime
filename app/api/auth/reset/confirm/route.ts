@@ -26,8 +26,16 @@ export async function POST(request: Request) {
         AUTH_RATE_LIMITS.resetConfirmIp
       );
     }
-    const { token, password } = await parseAuthJson(request, resetPasswordConfirmSchema);
-    await authService.resetPassword(token, password);
+    const { token, email, emailConfirmationCode, password } = await parseAuthJson(
+      request,
+      resetPasswordConfirmSchema
+    );
+    await enforceAuthRateLimit(
+      'password-reset-confirm',
+      `token:${token}`,
+      AUTH_RATE_LIMITS.resetConfirmGlobal
+    );
+    await authService.resetPassword(token, email, emailConfirmationCode, password);
     return authService.clearSessionCookies(
       authJson({
         success: true,

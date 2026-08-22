@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { authService } from '@/src/features/auth';
 import { existingPasswordSchema, newPasswordSchema } from '@/lib/validators';
+import { isValidCpf } from '@/src/shared/validation/brasil';
 import {
   CurrentPasswordInvalidError,
   InvalidNewPasswordError,
@@ -33,20 +34,6 @@ const profileMutationSchema = z.discriminatedUnion('action', [
     newPassword: newPasswordSchema,
   }),
 ]);
-
-function isValidCpf(value: string): boolean {
-  const digits = value.replace(/\D/g, '');
-  if (digits.length !== 11 || /^(\d)\1{10}$/.test(digits)) return false;
-  const check = (length: number): number => {
-    let sum = 0;
-    for (let index = 0; index < length; index += 1) {
-      sum += Number(digits[index]) * (length + 1 - index);
-    }
-    const remainder = (sum * 10) % 11;
-    return remainder === 10 ? 0 : remainder;
-  };
-  return check(9) === Number(digits[9]) && check(10) === Number(digits[10]);
-}
 
 export async function PATCH(request: Request) {
   try {

@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import {
   ACCESS_TOKEN_COOKIE,
+  ADMIN_ACCESS_TOKEN_COOKIE,
+  ADMIN_REFRESH_TOKEN_COOKIE,
   REFRESH_TOKEN_COOKIE,
   verifyAccessToken,
 } from '@/src/server/security/tokens';
@@ -41,8 +43,8 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const accessCookie = admin ? 'axeprime_admin_access_token' : ACCESS_TOKEN_COOKIE;
-  const refreshCookie = admin ? 'axeprime_admin_refresh_token' : REFRESH_TOKEN_COOKIE;
+  const accessCookie = admin ? ADMIN_ACCESS_TOKEN_COOKIE : ACCESS_TOKEN_COOKIE;
+  const refreshCookie = admin ? ADMIN_REFRESH_TOKEN_COOKIE : REFRESH_TOKEN_COOKIE;
   const accessToken = request.cookies.get(accessCookie)?.value;
   const refreshToken = request.cookies.get(refreshCookie)?.value;
   if (!accessToken) {

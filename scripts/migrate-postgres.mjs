@@ -82,35 +82,6 @@ function validateDatabaseUrl(value, environmentName = 'DATABASE_URL') {
   return value;
 }
 
-function databaseUsername(databaseUrl, environmentName) {
-  const encodedUsername = new URL(databaseUrl).username;
-  if (!encodedUsername) {
-    throw new Error(`${environmentName} precisa informar o usuário PostgreSQL.`);
-  }
-
-  try {
-    return decodeURIComponent(encodedUsername);
-  } catch {
-    throw new Error(`${environmentName} contém um usuário com percent-encoding inválido.`);
-  }
-}
-
-function optionalRuntimeRole() {
-  const role = process.env.DATABASE_RUNTIME_ROLE?.trim();
-  if (!role) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error('DATABASE_RUNTIME_ROLE é obrigatória em produção.');
-    }
-    return null;
-  }
-  if (!/^[A-Za-z_][A-Za-z0-9_]{0,62}$/.test(role)) {
-    throw new Error(
-      'DATABASE_RUNTIME_ROLE deve ser um identificador PostgreSQL simples de até 63 caracteres.'
-    );
-  }
-  return role;
-}
-
 function buildTlsConfiguration() {
   const mode = (process.env.DATABASE_SSL_MODE ?? 'verify-full').trim().toLowerCase();
 
@@ -282,200 +253,12 @@ async function applyMigration(client, migration, settings) {
   }
 }
 
-async function provisionRuntimePrivileges(client, runtimeRole) {
-  if (!runtimeRole) {
-    console.warn(
-      'DATABASE_RUNTIME_ROLE não configurada; privilégios da role da aplicação não foram gerenciados.'
-    );
-    return;
-  }
-
-  const roleResult = await client.query(
-    `SELECT quote_ident(role.rolname) AS role_identifier,
-            role.rolcanlogin,
-            role.rolsuper,
-            role.rolcreaterole,
-            role.rolcreatedb,
-            role.rolreplication,
-            role.rolbypassrls,
-            role.oid = database.datdba AS owns_database,
-            role.oid = namespace.nspowner AS owns_schema,
-            EXISTS (
-              SELECT 1
-                FROM pg_catalog.pg_class AS relation
-               WHERE relation.relnamespace = namespace.oid
-                 AND relation.relowner = role.oid
-            ) AS owns_relation,
-            EXISTS (
-              SELECT 1
-                FROM pg_catalog.pg_proc AS routine
-               WHERE routine.pronamespace = namespace.oid
-                 AND routine.proowner = role.oid
-            ) AS owns_routine,
-            EXISTS (
-              SELECT 1
-                FROM pg_catalog.pg_type AS data_type
-               WHERE data_type.typnamespace = namespace.oid
-                 AND data_type.typowner = role.oid
-            ) AS owns_type,
-            role.oid = migration_role.oid AS is_migrator,
-            pg_catalog.pg_has_role(role.oid, migration_role.oid, 'MEMBER') AS can_assume_migrator,
-            pg_catalog.has_database_privilege(role.oid, database.oid, 'CONNECT') AS can_connect,
-            pg_catalog.has_database_privilege(role.oid, database.oid, 'CREATE')
-              AS can_create_database_objects
-       FROM pg_catalog.pg_roles AS role
-       CROSS JOIN pg_catalog.pg_database AS database
-       CROSS JOIN pg_catalog.pg_namespace AS namespace
-       CROSS JOIN pg_catalog.pg_roles AS migration_role
-      WHERE role.rolname = $1
-        AND database.datname = current_database()
-        AND namespace.nspname = 'public'
-        AND migration_role.rolname = current_user`,
-    [runtimeRole]
-  );
-  const identifiers = roleResult.rows[0];
-  if (!identifiers) {
-    throw new Error(
-      `A role de runtime ${runtimeRole} não existe. Crie-a pelo provedor/DBA antes da migration.`
-    );
-  }
-
-  const forbiddenAttributes = [
-    ['SUPERUSER', identifiers.rolsuper],
-    ['CREATEROLE', identifiers.rolcreaterole],
-    ['CREATEDB', identifiers.rolcreatedb],
-    ['REPLICATION', identifiers.rolreplication],
-    ['BYPASSRLS', identifiers.rolbypassrls],
-  ]
-    .filter(([, enabled]) => enabled)
-    .map(([attribute]) => attribute);
-  if (
-    !identifiers.rolcanlogin ||
-    identifiers.owns_database ||
-    identifiers.owns_schema ||
-    identifiers.owns_relation ||
-    identifiers.owns_routine ||
-    identifiers.owns_type ||
-    identifiers.is_migrator ||
-    identifiers.can_assume_migrator ||
-    identifiers.can_create_database_objects ||
-    forbiddenAttributes.length > 0
-  ) {
-    throw new Error(
-      `A role de runtime ${runtimeRole} não é de privilégio mínimo. ` +
-        'Ela deve ser LOGIN, não pode possuir o banco/schema/tabelas, assumir a role migradora ' +
-        `nem ter atributos administrativos${
-          forbiddenAttributes.length > 0 ? ` (${forbiddenAttributes.join(', ')})` : ''
-        }.`
-    );
-  }
-  if (!identifiers.can_connect) {
-    throw new Error(
-      `A role de runtime ${runtimeRole} não possui CONNECT. ` +
-        'O provedor/DBA deve concedê-lo antes da migration.'
-    );
-  }
-
-  const role = identifiers.role_identifier;
-  await client.query('BEGIN');
-  try {
-    await client.query('REVOKE CREATE ON SCHEMA public FROM PUBLIC');
-    await client.query(`REVOKE CREATE ON SCHEMA public FROM ${role}`);
-    await client.query('REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM PUBLIC');
-    await client.query('REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM PUBLIC');
-    await client.query(`REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA public FROM ${role}`);
-    await client.query(`REVOKE ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public FROM ${role}`);
-    await client.query(`GRANT USAGE ON SCHEMA public TO ${role}`);
-    await client.query(
-      `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${role}`
-    );
-    await client.query(`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO ${role}`);
-    await client.query(
-      `ALTER DEFAULT PRIVILEGES IN SCHEMA public
-         GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${role}`
-    );
-    await client.query(
-      `ALTER DEFAULT PRIVILEGES IN SCHEMA public
-         GRANT USAGE, SELECT ON SEQUENCES TO ${role}`
-    );
-    await client.query(`REVOKE ALL PRIVILEGES ON TABLE public.schema_migrations FROM ${role}`);
-
-    const verification = await client.query(
-      `SELECT pg_catalog.has_schema_privilege($1, 'public', 'CREATE') AS can_create,
-              pg_catalog.has_table_privilege(
-                $1,
-                'public.schema_migrations',
-                'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
-              ) AS can_read_migrations,
-              EXISTS (
-                SELECT 1
-                  FROM pg_catalog.pg_class AS relation
-                  JOIN pg_catalog.pg_namespace AS namespace
-                    ON namespace.oid = relation.relnamespace
-                 WHERE namespace.nspname = 'public'
-                   AND relation.relkind IN ('r', 'p')
-                   AND pg_catalog.has_table_privilege(
-                     $1,
-                     relation.oid,
-                     'TRUNCATE,REFERENCES,TRIGGER'
-                   )
-              ) AS has_forbidden_table_privilege,
-              EXISTS (
-                SELECT 1
-                  FROM pg_catalog.pg_class AS sequence
-                  JOIN pg_catalog.pg_namespace AS namespace
-                    ON namespace.oid = sequence.relnamespace
-                 WHERE namespace.nspname = 'public'
-                   AND sequence.relkind = 'S'
-                   AND pg_catalog.has_sequence_privilege($1, sequence.oid, 'UPDATE')
-              ) AS has_forbidden_sequence_privilege`,
-      [runtimeRole]
-    );
-    if (
-      verification.rows[0]?.can_create ||
-      verification.rows[0]?.can_read_migrations ||
-      verification.rows[0]?.has_forbidden_table_privilege ||
-      verification.rows[0]?.has_forbidden_sequence_privilege
-    ) {
-      throw new Error(
-        `A role de runtime ${runtimeRole} ainda herdou privilégios proibidos. ` +
-          'Remova associações com roles privilegiadas antes de continuar.'
-      );
-    }
-
-    await client.query('COMMIT');
-    console.log(`✓ privilégios mínimos aplicados à role de runtime ${runtimeRole}`);
-  } catch (error) {
-    await client.query('ROLLBACK');
-    throw error;
-  }
-}
-
 async function main() {
   const configuredMigrationUrl = process.env.DATABASE_MIGRATION_URL?.trim();
-  const configuredRuntimeUrl = process.env.DATABASE_URL?.trim();
-  const runtimeRole = optionalRuntimeRole();
 
   if (process.env.NODE_ENV === 'production') {
     if (!configuredMigrationUrl) {
       throw new Error('DATABASE_MIGRATION_URL é obrigatória em produção.');
-    }
-    const runtimeUrl = validateDatabaseUrl(
-      configuredRuntimeUrl || requiredEnvironment('DATABASE_URL'),
-      'DATABASE_URL'
-    );
-    if (databaseUsername(runtimeUrl, 'DATABASE_URL') !== runtimeRole) {
-      throw new Error(
-        'O usuário de DATABASE_URL deve ser exatamente a role informada em DATABASE_RUNTIME_ROLE.'
-      );
-    }
-    if (
-      databaseUsername(
-        validateDatabaseUrl(configuredMigrationUrl, 'DATABASE_MIGRATION_URL'),
-        'DATABASE_MIGRATION_URL'
-      ) === runtimeRole
-    ) {
-      throw new Error('DATABASE_MIGRATION_URL não pode usar a role de runtime em produção.');
     }
   }
 
@@ -546,8 +329,6 @@ async function main() {
       console.log(`✓ ${migration.filename}: aplicada em ${elapsedMilliseconds} ms`);
       appliedCount += 1;
     }
-
-    await provisionRuntimePrivileges(client, runtimeRole);
 
     console.log(`Migrations concluídas: ${appliedCount} aplicada(s), ${skippedCount} ignorada(s).`);
   } finally {

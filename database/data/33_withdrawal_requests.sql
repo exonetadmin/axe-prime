@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS public.withdrawal_requests (
   reviewed_by   TEXT,
   reviewed_at   TIMESTAMPTZ,
   review_note   TEXT,
+  idempotency_key_hash CHAR(64),
+  request_fingerprint  CHAR(64),
   requested_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT withdrawal_requests_amount_cents_check CHECK (amount_cents > 0),
@@ -19,6 +21,13 @@ CREATE TABLE IF NOT EXISTS public.withdrawal_requests (
   CONSTRAINT withdrawal_requests_status_check CHECK (
     status IN ('pending', 'approved', 'rejected')
   ),
+  CONSTRAINT withdrawal_requests_idempotency_check CHECK (
+    (idempotency_key_hash IS NULL AND request_fingerprint IS NULL)
+    OR (
+      idempotency_key_hash ~ '^[0-9a-f]{64}$'
+      AND request_fingerprint ~ '^[0-9a-f]{64}$'
+    )
+  ),
   CONSTRAINT withdrawal_requests_review_check CHECK (
     (status = 'pending' AND reviewed_at IS NULL)
     OR (status IN ('approved', 'rejected') AND reviewed_at IS NOT NULL)
@@ -27,7 +36,9 @@ CREATE TABLE IF NOT EXISTS public.withdrawal_requests (
 
 ALTER TABLE public.withdrawal_requests
   ADD COLUMN IF NOT EXISTS pix_key_type TEXT,
-  ADD COLUMN IF NOT EXISTS requested_at TIMESTAMPTZ;
+  ADD COLUMN IF NOT EXISTS requested_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS idempotency_key_hash CHAR(64),
+  ADD COLUMN IF NOT EXISTS request_fingerprint CHAR(64);
 
 UPDATE public.withdrawal_requests
 SET
@@ -40,3 +51,19 @@ ALTER TABLE public.withdrawal_requests
   ALTER COLUMN pix_key_type SET NOT NULL,
   ALTER COLUMN requested_at SET DEFAULT NOW(),
   ALTER COLUMN requested_at SET NOT NULL;
+
+ALTER TABLE public.withdrawal_requests
+  DROP CONSTRAINT IF EXISTS withdrawal_requests_idempotency_check;
+
+ALTER TABLE public.withdrawal_requests
+  ADD CONSTRAINT withdrawal_requests_idempotency_check CHECK (
+    (idempotency_key_hash IS NULL AND request_fingerprint IS NULL)
+    OR (
+      idempotency_key_hash ~ '^[0-9a-f]{64}$'
+      AND request_fingerprint ~ '^[0-9a-f]{64}$'
+    )
+  );
+
+CREATE UNIQUE INDEX IF NOT EXISTS withdrawal_requests_user_idempotency_key
+  ON public.withdrawal_requests (user_id, idempotency_key_hash)
+  WHERE idempotency_key_hash IS NOT NULL;

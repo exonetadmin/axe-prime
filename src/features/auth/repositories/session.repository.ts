@@ -1,6 +1,6 @@
 import '@/src/server/server-only';
 
-import { randomUUID } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { queryOne, withTransaction } from '@/src/server/db/postgres';
 import { maybePruneExpiredAuthRecords } from '@/src/server/security/auth-record-cleanup';
@@ -11,6 +11,29 @@ import {
   PASSWORD_RESET_TTL_SECONDS,
   REFRESH_TOKEN_TTL_SECONDS,
 } from '@/src/server/security/tokens';
+
+const MAX_PASSWORD_RESET_CONFIRMATION_ATTEMPTS = 5;
+const PASSWORD_RESET_HASH_LENGTH = 64;
+
+function normalizeEmail(value: string | null | undefined): string {
+  return value?.trim().toLowerCase() ?? '';
+}
+
+function isPasswordResetCodeHashMatch(stored: string, expected: string): boolean {
+  if (!stored || !expected) return false;
+  if (
+    stored.length !== PASSWORD_RESET_HASH_LENGTH ||
+    expected.length !== PASSWORD_RESET_HASH_LENGTH ||
+    !/^[0-9a-fA-F]{64}$/.test(stored) ||
+    !/^[0-9a-f]{64}$/.test(expected)
+  ) {
+    return false;
+  }
+  const left = Buffer.from(stored, 'hex');
+  const right = Buffer.from(expected, 'hex');
+  if (left.length !== right.length) return false;
+  return timingSafeEqual(left, right);
+}
 
 export type SessionContext = {
   userAgentHash?: string | null;
@@ -339,9 +362,14 @@ export class SessionRepository {
     });
   }
 
-  async createPasswordResetToken(userId: string): Promise<string> {
+  async createPasswordResetToken(
+    userId: string,
+    confirmationCodeHash: string,
+    confirmationCodeExpiresAt: Date
+  ): Promise<string> {
     await maybePruneExpiredAuthRecords();
     const token = createRefreshToken();
+    const tokenHash = hashOpaqueToken(token);
     await withTransaction(async client => {
       const userResult = await client.query<{ id: string }>(
         'SELECT id FROM public.users WHERE id = $1 FOR UPDATE',
@@ -357,12 +385,23 @@ export class SessionRepository {
       );
       await client.query(
         `INSERT INTO public.password_reset_tokens (
-           id, user_id, token_hash, expires_at
+           id, user_id, token_hash, expires_at,
+           email_confirmation_code_hash, email_confirmation_code_expires_at,
+           email_confirmation_attempts
          ) VALUES (
            $1, $2, $3,
-           NOW() + ($4::integer * INTERVAL '1 second')
+           NOW() + ($4::integer * INTERVAL '1 second'),
+           $5, $6, $7
          )`,
-        [randomUUID(), userId, hashOpaqueToken(token), PASSWORD_RESET_TTL_SECONDS]
+        [
+          randomUUID(),
+          userId,
+          tokenHash,
+          PASSWORD_RESET_TTL_SECONDS,
+          confirmationCodeHash,
+          confirmationCodeExpiresAt,
+          0,
+        ]
       );
     });
     return token;
@@ -379,19 +418,6 @@ export class SessionRepository {
     return row?.session_id ?? null;
   }
 
-  async findActivePasswordResetUser(token: string): Promise<string | null> {
-    const row = await queryOne<{ user_id: string }>(
-      `SELECT user_id
-         FROM public.password_reset_tokens
-        WHERE token_hash = ANY($1::varchar[])
-          AND consumed_at IS NULL
-          AND expires_at > NOW()
-        LIMIT 1`,
-      [tokenHashes(token)]
-    );
-    return row?.user_id ?? null;
-  }
-
   async invalidatePasswordResetToken(token: string): Promise<void> {
     await withTransaction(async client => {
       await client.query(
@@ -404,17 +430,30 @@ export class SessionRepository {
     });
   }
 
-  async consumePasswordResetToken(token: string, passwordHash: string): Promise<string | null> {
+  async consumePasswordResetToken(
+    token: string,
+    expectedEmail: string,
+    expectedCodeHash: string,
+    passwordHash: string
+  ): Promise<string | null> {
+    const expectedEmailHash = normalizeEmail(expectedEmail);
+    const expectedCodeHashNormalized = expectedCodeHash.trim().toLowerCase();
+    if (!expectedEmailHash || !expectedCodeHashNormalized) return null;
+
     return withTransaction(async client => {
-      const ownerResult = await client.query<{ user_id: string }>(
-        `SELECT user_id
-           FROM public.password_reset_tokens
-          WHERE token_hash = ANY($1::varchar[])
+      const ownerResult = await client.query<{ user_id: string; email: string }>(
+        `SELECT pr.user_id, u.email AS email
+           FROM public.password_reset_tokens pr
+           JOIN public.users u
+             ON u.id = pr.user_id
+          WHERE pr.token_hash = ANY($1::varchar[])
           LIMIT 1`,
         [tokenHashes(token)]
       );
       const ownerUserId = ownerResult.rows[0]?.user_id;
       if (!ownerUserId) return null;
+      const ownerEmailHash = normalizeEmail(ownerResult.rows[0]?.email);
+      const ownerEmailMatches = ownerEmailHash === expectedEmailHash;
 
       const lockedUser = await client.query<{ id: string }>(
         'SELECT id FROM public.users WHERE id = $1 FOR UPDATE',
@@ -438,9 +477,15 @@ export class SessionRepository {
         user_id: string;
         expires_at: Date | string;
         consumed_at: Date | string | null;
+        email_confirmation_code_hash: string | null;
+        email_confirmation_code_expires_at: Date | string | null;
+        email_confirmation_attempts: number;
         database_now: Date | string;
       }>(
         `SELECT id, user_id, expires_at, consumed_at,
+                email_confirmation_code_hash,
+                email_confirmation_code_expires_at,
+                COALESCE(email_confirmation_attempts, 0) AS email_confirmation_attempts,
                 clock_timestamp() AS database_now
            FROM public.password_reset_tokens
           WHERE token_hash = ANY($1::varchar[])
@@ -453,8 +498,38 @@ export class SessionRepository {
       if (
         !resetToken ||
         resetToken.consumed_at ||
-        new Date(resetToken.expires_at).getTime() <= new Date(resetToken.database_now).getTime()
+        new Date(resetToken.expires_at).getTime() <= new Date(resetToken.database_now).getTime() ||
+        !resetToken.email_confirmation_code_hash ||
+        !resetToken.email_confirmation_code_expires_at ||
+        new Date(resetToken.email_confirmation_code_expires_at).getTime() <=
+          new Date(resetToken.database_now).getTime()
       ) {
+        return null;
+      }
+
+      if (resetToken.email_confirmation_attempts >= MAX_PASSWORD_RESET_CONFIRMATION_ATTEMPTS) {
+        await client.query(
+          `UPDATE public.password_reset_tokens
+              SET consumed_at = COALESCE(consumed_at, NOW())
+            WHERE id = $1`,
+          [resetToken.id]
+        );
+        return null;
+      }
+
+      if (
+        !ownerEmailMatches ||
+        !isPasswordResetCodeHashMatch(
+          resetToken.email_confirmation_code_hash.toLowerCase(),
+          expectedCodeHashNormalized
+        )
+      ) {
+        await client.query(
+          `UPDATE public.password_reset_tokens
+              SET email_confirmation_attempts = email_confirmation_attempts + 1
+            WHERE id = $1`,
+          [resetToken.id]
+        );
         return null;
       }
 

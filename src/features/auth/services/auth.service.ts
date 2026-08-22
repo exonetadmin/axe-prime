@@ -1,6 +1,6 @@
 import '@/src/server/server-only';
 
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes, randomInt, randomUUID } from 'node:crypto';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import type {
@@ -38,17 +38,20 @@ import {
   CSRF_TOKEN_COOKIE,
   readBearerToken,
   REFRESH_TOKEN_COOKIE,
+  hashPasswordResetCode,
+  PASSWORD_RESET_TTL_SECONDS,
   signAccessToken,
   verifyAccessToken,
 } from '@/src/server/security/tokens';
 import { readCookieToken } from '@/src/server/security/request';
+import { validatePasswordPolicy } from '@/lib/password-policy';
 
 const LEGACY_SESSION_COOKIE = 'axeprime_session';
-const MIN_NEW_PASSWORD_LENGTH = 15;
 const MAX_PASSWORD_LENGTH = 128;
 const REFERRAL_CODE_PREFIX = 'AP-';
 const REFERRAL_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const REFERRAL_CODE_VALID = /^AP-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/;
+const EMAIL_CONFIRMATION_CODE_LENGTH = 6;
 
 type PgError = Error & { code?: string; constraint?: string };
 
@@ -64,20 +67,31 @@ function normalizePassword(password: string): string {
   return password.normalize('NFC');
 }
 
-function validateNewPassword(password: string): string {
+function validateNewPassword(password: string, contextualValues: readonly string[] = []): string {
   const normalized = normalizePassword(password);
+  const policyError = validatePasswordPolicy(normalized, contextualValues);
+  if (policyError) throw new ValidationError(policyError);
   const length = Array.from(normalized).length;
-  if (length < MIN_NEW_PASSWORD_LENGTH) {
-    throw new ValidationError(`A senha deve ter pelo menos ${MIN_NEW_PASSWORD_LENGTH} caracteres.`);
-  }
   if (length > MAX_PASSWORD_LENGTH) {
-    throw new ValidationError(`A senha deve ter no máximo ${MAX_PASSWORD_LENGTH} caracteres.`);
+    throw new ValidationError('A senha deve ter no máximo 128 caracteres.');
   }
   return normalized;
 }
 
 function isAxePrimeReferralCode(code: string | null | undefined): boolean {
   return Boolean(code && REFERRAL_CODE_VALID.test(code.trim().toUpperCase()));
+}
+
+function normalizeEmailConfirmationCode(value: string): string {
+  return value.trim();
+}
+
+function generateEmailConfirmationCode(length = EMAIL_CONFIRMATION_CODE_LENGTH): string {
+  let output = '';
+  for (let index = 0; index < length; index += 1) {
+    output += String(randomInt(0, 10));
+  }
+  return output;
 }
 
 function publicUser(record: UserRecord): User {
@@ -230,7 +244,7 @@ export class AuthService implements AuthContract {
       throw new ValidationError('Código do patrocinador é obrigatório.');
     }
 
-    const password = validateNewPassword(data.password);
+    const password = validateNewPassword(data.password, [name, email]);
     if (await this.userRepo.findByEmail(email)) throw new EmailExistsError();
     const sponsor = await this.userRepo.findByReferralCode(sponsorCode);
     if (!sponsor) {
@@ -397,12 +411,19 @@ export class AuthService implements AuthContract {
     const user = await this.userRepo.findByEmail(normalizedEmail);
     if (!user || !user.is_active) return;
 
-    const token = await this.sessionRepo.createPasswordResetToken(user.id);
+    const confirmationCode = generateEmailConfirmationCode();
+    const confirmationCodeHash = hashPasswordResetCode(user.email, confirmationCode);
+    const token = await this.sessionRepo.createPasswordResetToken(
+      user.id,
+      confirmationCodeHash,
+      new Date(Date.now() + PASSWORD_RESET_TTL_SECONDS * 1000)
+    );
     try {
       await this.resetDelivery.deliver({
         email: user.email,
         name: user.name,
         resetToken: token,
+        emailConfirmationCode: confirmationCode,
       });
     } catch {
       try {
@@ -415,18 +436,37 @@ export class AuthService implements AuthContract {
     }
   }
 
-  async resetPassword(token: string, newPassword: string): Promise<void> {
-    if (!token || !newPassword) {
-      throw new ValidationError('Token e nova senha são obrigatórios.');
+  async resetPassword(
+    token: string,
+    email: string,
+    emailConfirmationCode: string,
+    newPassword: string
+  ): Promise<void> {
+    if (!token || !newPassword || !email || !emailConfirmationCode) {
+      throw new ValidationError('Token, e-mail e código de confirmação são obrigatórios.');
     }
     if (!/^(?:[A-Za-z0-9_-]{64}|[0-9a-fA-F-]{36})$/.test(token)) {
       throw new InvalidTokenError();
     }
-    const resetUserId = await this.sessionRepo.findActivePasswordResetUser(token);
-    if (!resetUserId) throw new InvalidTokenError();
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail) {
+      throw new ValidationError('E-mail inválido.');
+    }
+    const normalizedCode = normalizeEmailConfirmationCode(emailConfirmationCode);
+
+    if (!/^[0-9]{6}$/.test(normalizedCode)) {
+      throw new InvalidTokenError();
+    }
+
     const passwordHash = await hashPassword(validateNewPassword(newPassword));
-    const userId = await this.sessionRepo.consumePasswordResetToken(token, passwordHash);
-    if (!userId || userId !== resetUserId) throw new InvalidTokenError();
+    const codeHash = hashPasswordResetCode(normalizedEmail, normalizedCode);
+    const userId = await this.sessionRepo.consumePasswordResetToken(
+      token,
+      normalizedEmail,
+      codeHash,
+      passwordHash
+    );
+    if (!userId) throw new InvalidTokenError();
   }
 
   async attachSessionCookies(

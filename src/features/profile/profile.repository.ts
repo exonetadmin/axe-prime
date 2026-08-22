@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { execute, queryOne, withTransaction } from '@/src/server/db/postgres';
 import { hashPassword, verifyPassword } from '@/src/server/security/password';
 import { encodeAvatarUserId } from './avatar-url';
+import { validatePasswordPolicy } from '@/lib/password-policy';
 
 export type AvatarContentType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
 
@@ -23,7 +24,7 @@ export class CurrentPasswordInvalidError extends Error {
 
 export class InvalidNewPasswordError extends Error {
   constructor() {
-    super('A nova senha deve ter entre 15 e 128 caracteres.');
+    super('A nova senha deve ter entre 8 e 128 caracteres e incluir letra, número e caractere especial.');
     this.name = 'InvalidNewPasswordError';
   }
 }
@@ -48,22 +49,27 @@ export class ProfileRepository {
   ): Promise<void> {
     const normalizedNewPassword = newPassword.normalize('NFC');
     const newPasswordLength = Array.from(normalizedNewPassword).length;
-    if (newPasswordLength < 15 || newPasswordLength > 128) {
+    if (newPasswordLength > 128) {
       throw new InvalidNewPasswordError();
     }
-    const current = await queryOne<{ password_hash: string }>(
-      'SELECT password_hash FROM users WHERE id = $1 AND is_active = TRUE',
+    const current = await queryOne<{ password_hash: string; name: string; email: string }>(
+      'SELECT password_hash, name, email FROM users WHERE id = $1 AND is_active = TRUE',
       [userId]
     );
     const normalizedCurrentPassword = currentPassword.normalize('NFC');
+    if (!current) throw new CurrentPasswordInvalidError();
+    const passwordPolicyError = validatePasswordPolicy(normalizedNewPassword, [current.name, current.email]);
     let currentPasswordValid = current
       ? await verifyPassword(normalizedCurrentPassword, current.password_hash)
       : false;
-    if (current && !currentPasswordValid && normalizedCurrentPassword !== currentPassword) {
+    if (!currentPasswordValid && normalizedCurrentPassword !== currentPassword) {
       currentPasswordValid = await verifyPassword(currentPassword, current.password_hash);
     }
-    if (!current || !currentPasswordValid) {
+    if (!currentPasswordValid) {
       throw new CurrentPasswordInvalidError();
+    }
+    if (passwordPolicyError) {
+      throw new InvalidNewPasswordError();
     }
 
     const newHash = await hashPassword(normalizedNewPassword);

@@ -6,6 +6,7 @@ import { adminRepository } from '@/src/features/admin/admin.repository';
 import { userRepository } from '@/src/features/auth/repositories/user.repository';
 import { requireAdmin } from '@/src/features/admin/admin.auth';
 import { hashPassword } from '@/src/server/security/password';
+import { validatePasswordPolicy } from '@/lib/password-policy';
 
 // ── Geração de referral_code AXE PRIME ──────────────────────────────────────
 
@@ -51,8 +52,12 @@ export async function createUserAction(
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
     return { ok: false, message: 'E-mail inválido.' };
   const passwordLength = Array.from(password).length;
-  if (passwordLength < 15 || passwordLength > 128) {
-    return { ok: false, message: 'A senha deve ter entre 15 e 128 caracteres.' };
+  if (passwordLength > 128) {
+    return { ok: false, message: 'A senha deve ter entre 8 e 128 caracteres.' };
+  }
+  const passwordPolicyError = validatePasswordPolicy(password, [name, email]);
+  if (passwordPolicyError) {
+    return { ok: false, message: passwordPolicyError };
   }
 
   const existing = await userRepository.findByEmail(email);
@@ -305,15 +310,14 @@ export async function markCashbackMonthAction(
   }
 
   const userId = (formData.get('userId') as string | null)?.trim();
-  const monthNum = parseInt((formData.get('monthNumber') as string) ?? '0', 10);
-  const amountCents = parseInt((formData.get('amountCents') as string) ?? '0', 10);
+  const rawMonth = (formData.get('monthNumber') as string | null) ?? '';
+  const monthNum = /^([1-9]|1[0-2])$/.test(rawMonth) ? Number(rawMonth) : 0;
 
   if (!userId) return { ok: false, message: 'Usuário inválido.' };
   if (monthNum < 1 || monthNum > 12) return { ok: false, message: 'Mês inválido (1-12).' };
-  if (amountCents <= 0) return { ok: false, message: 'Valor inválido.' };
 
   try {
-    await adminRepository.markCashbackMonthPaid(userId, monthNum, amountCents, admin.email);
+    await adminRepository.markCashbackMonthPaid(userId, monthNum, admin.email, admin.id);
     revalidatePath('/admin/cashback');
     revalidatePath('/admin/comissoes');
     revalidatePath('/portal', 'layout');
@@ -332,20 +336,22 @@ export async function unmarkCashbackMonthAction(
   _prev: { ok: boolean; message: string } | null,
   formData: FormData
 ): Promise<{ ok: boolean; message: string }> {
+  let admin;
   try {
-    await requireAdmin(['master']);
+    admin = await requireAdmin(['master']);
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : 'Não autorizado.' };
   }
 
   const userId = (formData.get('userId') as string | null)?.trim();
-  const monthNum = parseInt((formData.get('monthNumber') as string) ?? '0', 10);
+  const rawMonth = (formData.get('monthNumber') as string | null) ?? '';
+  const monthNum = /^([1-9]|1[0-2])$/.test(rawMonth) ? Number(rawMonth) : 0;
 
   if (!userId) return { ok: false, message: 'Usuário inválido.' };
   if (monthNum < 1 || monthNum > 12) return { ok: false, message: 'Mês inválido.' };
 
   try {
-    await adminRepository.unmarkCashbackMonthPaid(userId, monthNum);
+    await adminRepository.unmarkCashbackMonthPaid(userId, monthNum, admin.id);
     revalidatePath('/admin/cashback');
     revalidatePath('/admin/comissoes');
     revalidatePath('/portal', 'layout');
@@ -366,8 +372,9 @@ export async function markCommissionPaidAction(
   _prev: { ok: boolean; message: string } | null,
   formData: FormData
 ): Promise<{ ok: boolean; message: string }> {
+  let admin;
   try {
-    await requireAdmin(['master']);
+    admin = await requireAdmin(['master']);
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : 'Não autorizado.' };
   }
@@ -376,7 +383,7 @@ export async function markCommissionPaidAction(
   if (!commissionId) return { ok: false, message: 'Comissão inválida.' };
 
   try {
-    await adminRepository.updateCommissionStatus(commissionId, 'paid');
+    await adminRepository.updateCommissionStatus(commissionId, 'paid', admin.id);
     revalidatePath('/admin/comissoes');
     revalidatePath('/portal', 'layout');
     revalidatePath('/portal/comissoes');
@@ -392,8 +399,9 @@ export async function markCommissionAvailableAction(
   _prev: { ok: boolean; message: string } | null,
   formData: FormData
 ): Promise<{ ok: boolean; message: string }> {
+  let admin;
   try {
-    await requireAdmin(['master']);
+    admin = await requireAdmin(['master']);
   } catch (error) {
     return { ok: false, message: error instanceof Error ? error.message : 'Não autorizado.' };
   }
@@ -402,7 +410,7 @@ export async function markCommissionAvailableAction(
   if (!commissionId) return { ok: false, message: 'Comissão inválida.' };
 
   try {
-    await adminRepository.updateCommissionStatus(commissionId, 'available');
+    await adminRepository.updateCommissionStatus(commissionId, 'available', admin.id);
     revalidatePath('/admin/comissoes');
     revalidatePath('/portal', 'layout');
     revalidatePath('/portal/comissoes');

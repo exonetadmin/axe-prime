@@ -216,9 +216,13 @@ describe('SessionRepository', () => {
 
   it('locks user then sessions before consuming a password-reset token', async () => {
     const now = new Date('2026-08-20T12:00:00.000Z');
+    const resetCodeHash = 'b'.repeat(64);
     const query = vi
       .fn()
-      .mockResolvedValueOnce({ rows: [{ user_id: 'user-1' }], rowCount: 1 })
+      .mockResolvedValueOnce({
+        rows: [{ user_id: 'user-1', email: 'test@example.com' }],
+        rowCount: 1,
+      })
       .mockResolvedValueOnce({ rows: [{ id: 'user-1' }], rowCount: 1 })
       .mockResolvedValueOnce({ rows: [{ id: 'session-1' }], rowCount: 1 })
       .mockResolvedValueOnce({
@@ -228,6 +232,9 @@ describe('SessionRepository', () => {
             user_id: 'user-1',
             expires_at: new Date(now.getTime() + 60_000),
             consumed_at: null,
+            email_confirmation_code_hash: resetCodeHash,
+            email_confirmation_code_expires_at: new Date(now.getTime() + 120_000),
+            email_confirmation_attempts: 0,
             database_now: now,
           },
         ],
@@ -239,7 +246,12 @@ describe('SessionRepository', () => {
     useClient(query);
 
     await expect(
-      new SessionRepository().consumePasswordResetToken('r'.repeat(64), 'scrypt$new')
+      new SessionRepository().consumePasswordResetToken(
+        'r'.repeat(64),
+        'test@example.com',
+        resetCodeHash,
+        'scrypt$new'
+      )
     ).resolves.toBe('user-1');
 
     expect(query.mock.calls[1]?.[0]).toContain('public.users');
