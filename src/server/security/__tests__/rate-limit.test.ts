@@ -46,6 +46,8 @@ describe('PostgreSQL rate limiter', () => {
     expect(query.mock.calls[0]?.[0]).toContain('SKIP LOCKED');
     expect(query.mock.calls[2]?.[0]).toContain('FOR UPDATE');
     expect(query.mock.calls[3]?.[1]?.[1]).toBe(3);
+    expect(query.mock.calls[3]?.[0]).toContain('updated_at = clock_timestamp()');
+    expect(query.mock.calls[3]?.[1]).toHaveLength(2);
     expect(query.mock.calls[1]?.[1]?.[0]).toMatch(/^[0-9a-f]{64}$/);
     expect(query.mock.calls[1]?.[1]?.[0]).not.toContain('user@example.com');
   });
@@ -86,7 +88,8 @@ describe('PostgreSQL rate limiter', () => {
       retryAfterSeconds: 600,
     });
     expect(query.mock.calls[3]?.[1]?.[1]).toBe(6);
-    expect(query.mock.calls[3]?.[1]?.[2]).toEqual(new Date(now.getTime() + 600_000));
+    expect(query.mock.calls[3]?.[1]?.[2]).toBe(600);
+    expect(query.mock.calls[3]?.[0]).toContain("$3::integer * INTERVAL '1 second'");
   });
 
   it('starts a clean window after a previous block has elapsed', async () => {
@@ -106,5 +109,30 @@ describe('PostgreSQL rate limiter', () => {
       retryAfterSeconds: 0,
     });
     expect(query.mock.calls[3]?.[0]).toContain('attempts = 1');
+    expect(query.mock.calls[3]?.[0]).toContain('database_clock.value');
+    expect(query.mock.calls[3]?.[1]).toHaveLength(1);
+  });
+
+  it('never persists a database timestamp after JavaScript truncates its microseconds', async () => {
+    const { query, repository } = repositoryWithRows([
+      {
+        attempts: 0,
+        window_started_at: '2026-08-20T12:00:00.000999Z',
+        blocked_until: null,
+        database_now: '2026-08-20T12:00:00.000999Z',
+      },
+    ]);
+
+    await expect(repository.consume('login', 'account:new@example.com', POLICY)).resolves.toEqual({
+      allowed: true,
+      remaining: 4,
+      retryAfterSeconds: 0,
+    });
+
+    expect(query.mock.calls[1]?.[0]).toContain('database_clock AS MATERIALIZED');
+    expect(query.mock.calls[1]?.[0]).toContain('database_clock.value, database_clock.value');
+    expect(query.mock.calls[3]?.[0]).toContain('clock_timestamp()');
+    expect(query.mock.calls[3]?.[1]).toHaveLength(2);
+    expect(query.mock.calls[3]?.[1]?.some((value: unknown) => value instanceof Date)).toBe(false);
   });
 });

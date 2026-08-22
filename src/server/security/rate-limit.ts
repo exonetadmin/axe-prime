@@ -83,9 +83,14 @@ export class RateLimitRepository {
       );
 
       await client.query(
-        `INSERT INTO public.auth_rate_limits (
+        `WITH database_clock AS MATERIALIZED (
+           SELECT clock_timestamp() AS value
+         )
+         INSERT INTO public.auth_rate_limits (
            key_hash, action, attempts, window_started_at, updated_at
-         ) VALUES ($1, $2, 0, clock_timestamp(), clock_timestamp())
+         )
+         SELECT $1, $2, 0, database_clock.value, database_clock.value
+           FROM database_clock
          ON CONFLICT (key_hash) DO NOTHING`,
         [keyHash, action]
       );
@@ -122,13 +127,17 @@ export class RateLimitRepository {
       // re-blocking a bucket whose old attempt count is already above limit.
       if (windowExpired || blockedUntil) {
         await client.query(
-          `UPDATE public.auth_rate_limits
+          `WITH database_clock AS MATERIALIZED (
+             SELECT clock_timestamp() AS value
+           )
+           UPDATE public.auth_rate_limits
            SET attempts = 1,
-               window_started_at = $2,
+               window_started_at = database_clock.value,
                blocked_until = NULL,
-               updated_at = $2
+               updated_at = database_clock.value
+           FROM database_clock
            WHERE key_hash = $1`,
-          [keyHash, now]
+          [keyHash]
         );
         return {
           allowed: true,
@@ -139,14 +148,17 @@ export class RateLimitRepository {
 
       const attempts = Number(row.attempts) + 1;
       if (attempts > policy.limit) {
-        const nextBlockedUntil = new Date(now.getTime() + policy.blockSeconds * 1000);
         await client.query(
-          `UPDATE public.auth_rate_limits
+          `WITH database_clock AS MATERIALIZED (
+             SELECT clock_timestamp() AS value
+           )
+           UPDATE public.auth_rate_limits
            SET attempts = $2,
-               blocked_until = $3,
-               updated_at = $4
+               blocked_until = database_clock.value + ($3::integer * INTERVAL '1 second'),
+               updated_at = database_clock.value
+           FROM database_clock
            WHERE key_hash = $1`,
-          [keyHash, attempts, nextBlockedUntil, now]
+          [keyHash, attempts, policy.blockSeconds]
         );
         return {
           allowed: false,
@@ -158,9 +170,9 @@ export class RateLimitRepository {
       await client.query(
         `UPDATE public.auth_rate_limits
          SET attempts = $2,
-             updated_at = $3
+             updated_at = clock_timestamp()
          WHERE key_hash = $1`,
-        [keyHash, attempts, now]
+        [keyHash, attempts]
       );
       return {
         allowed: true,
