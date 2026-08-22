@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -30,7 +30,6 @@ const primaryNav = [
   { href: '/portal/carteira', label: 'Carteira', icon: CreditCard },
 ];
 
-
 /* ── Secondary items inside the hamburger drawer ── */
 const secondaryNav = [
   { href: '/portal/planos', label: 'Planos', icon: Star },
@@ -43,16 +42,28 @@ const secondaryNav = [
 /* ── Full list for the desktop sidebar (unchanged) ── */
 const allNav = [...primaryNav, ...secondaryNav];
 
-export default function PortalShell({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function PortalShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const toggleMenu = useCallback(() => setMenuOpen((o) => !o), []);
+  const toggleMenu = useCallback(() => setMenuOpen(o => !o), []);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeMenu();
+    };
+
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [closeMenu, menuOpen]);
 
   const isLinkActive = (href: string) =>
     href === '/portal' ? pathname === '/portal' : pathname.startsWith(href);
@@ -137,38 +148,48 @@ export default function PortalShell({
 
       {/* ── Hamburger drawer ── */}
       {menuOpen && (
-        <div className="portal-drawer-backdrop" onClick={closeMenu} />
-      )}
-      <div className={`portal-drawer${menuOpen ? ' is-open' : ''}`}>
-        <div className="portal-drawer-header">
-          <span className="portal-drawer-title">Menu</span>
-          <button
-            type="button"
-            className="portal-drawer-close"
-            onClick={closeMenu}
-            aria-label="Fechar menu"
+        <>
+          <div className="portal-drawer-backdrop" onClick={closeMenu} aria-hidden="true" />
+          <aside
+            className="portal-drawer is-open"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Menu adicional"
           >
-            <X size={18} strokeWidth={1.8} />
-          </button>
-        </div>
-        <nav className="portal-drawer-nav" aria-label="Menu adicional">
-          {secondaryNav.map(({ href, label, icon: Icon }) => {
-            const isActive = isLinkActive(href);
-            return (
-              <Link
-                key={href}
-                href={href}
-                className={`portal-drawer-link${isActive ? ' is-active' : ''}`}
-                aria-current={isActive ? 'page' : undefined}
+            <div className="portal-drawer-header">
+              <span className="portal-drawer-title">Menu</span>
+              <button
+                type="button"
+                className="portal-drawer-close"
                 onClick={closeMenu}
+                aria-label="Fechar menu"
               >
-                <Icon size={20} strokeWidth={1.8} aria-hidden />
-                <span>{label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
+                <X size={18} strokeWidth={1.8} />
+              </button>
+            </div>
+            <nav className="portal-drawer-nav" aria-label="Menu adicional">
+              {secondaryNav.map(({ href, label, icon: Icon }) => {
+                const isActive = isLinkActive(href);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={`portal-drawer-link${isActive ? ' is-active' : ''}`}
+                    aria-current={isActive ? 'page' : undefined}
+                    onClick={closeMenu}
+                  >
+                    <Icon size={20} strokeWidth={1.8} aria-hidden />
+                    <span>{label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+            <div className="portal-drawer-session">
+              <LogoutButton />
+            </div>
+          </aside>
+        </>
+      )}
     </div>
   );
 }

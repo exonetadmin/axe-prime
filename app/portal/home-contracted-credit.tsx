@@ -48,7 +48,7 @@ const HomeContractedCredit: FC<Props> = ({
   /* ── empty state ── */
   if (!hasValue) {
     return (
-      <section style={{
+      <section className="hcc-card" style={{
         position: 'relative',
         padding: '0.75rem 1.25rem 0.5rem 1.5rem',
         borderLeft: `2px solid transparent`,
@@ -71,7 +71,7 @@ const HomeContractedCredit: FC<Props> = ({
   const { integer, decimal } = splitBRL(adhesionValueCents!);
 
   return (
-    <section style={{
+    <section className="hcc-card" style={{
       position: 'relative',
       padding: '0.75rem 1.25rem 0.75rem 1.5rem',
       /* Traço vertical accent na esquerda */
