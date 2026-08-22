@@ -57,9 +57,9 @@ function assertNoConnectionStringSslOverrides(connectionString: string): void {
   }
 }
 
-function createPool(): Pool {
-  const connectionString = requiredEnv('DATABASE_URL');
-  assertNoConnectionStringSslOverrides(connectionString);
+export function databaseSslConfiguration():
+  | false
+  | { rejectUnauthorized: boolean; ca?: string } {
   const sslMode = (
     process.env.DATABASE_SSL_MODE ??
     (process.env.NODE_ENV === 'production' ? 'verify-full' : 'disable')
@@ -77,13 +77,22 @@ function createPool(): Pool {
   if (ca && !ca.includes('BEGIN CERTIFICATE')) {
     throw new Error('DATABASE_CA_CERT must contain a PEM certificate');
   }
-  const ssl =
-    sslMode === 'disable'
-      ? false
-      : {
-          rejectUnauthorized: true,
-          ...(ca ? { ca } : {}),
-        };
+  if (sslMode === 'disable') return false;
+
+  return {
+    // `require` keeps the transport encrypted but intentionally does not
+    // validate a private/self-signed CA. Use only on a trusted private
+    // network (for example Railway's internal network). `verify-full`
+    // validates the certificate chain and hostname.
+    rejectUnauthorized: sslMode === 'verify-full',
+    ...(sslMode === 'verify-full' && ca ? { ca } : {}),
+  };
+}
+
+function createPool(): Pool {
+  const connectionString = requiredEnv('DATABASE_URL');
+  assertNoConnectionStringSslOverrides(connectionString);
+  const ssl = databaseSslConfiguration();
   const statementTimeoutMs = readPositiveInteger('DATABASE_STATEMENT_TIMEOUT_MS', 15_000);
   const lockTimeoutMs = readPositiveInteger('DATABASE_LOCK_TIMEOUT_MS', 5_000);
   const transactionTimeoutMs = readPositiveInteger(

@@ -337,7 +337,10 @@ function tlsConfiguration() {
   if (ca && !ca.includes('BEGIN CERTIFICATE')) {
     throw new Error('DATABASE_CA_CERT não contém um certificado PEM válido.');
   }
-  return { rejectUnauthorized: true, ...(ca ? { ca } : {}) };
+  return {
+    rejectUnauthorized: mode === 'verify-full',
+    ...(mode === 'verify-full' && ca ? { ca } : {}),
+  };
 }
 
 async function createOrRotateAdmin(client, options, passwordHash) {

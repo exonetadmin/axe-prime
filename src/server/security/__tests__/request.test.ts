@@ -15,7 +15,24 @@ describe('request security', () => {
   beforeEach(() => {
     process.env.AUTH_TOKEN_PEPPER = Buffer.alloc(32, 5).toString('base64');
     process.env.AUTH_ALLOWED_ORIGINS = 'https://app.axe.example';
+    delete process.env.APP_PUBLIC_URL;
     delete process.env.TRUST_PROXY_HEADERS;
+  });
+
+  it('accepts the canonical public URL when the framework request URL uses an internal proxy host', () => {
+    process.env.AUTH_ALLOWED_ORIGINS = '';
+    process.env.APP_PUBLIC_URL = 'https://axe-prime-production.up.railway.app';
+    const request = new Request('https://localhost:8080/api/auth/register', {
+      method: 'POST',
+      headers: {
+        origin: 'https://axe-prime-production.up.railway.app',
+        'sec-fetch-site': 'same-origin',
+        'x-forwarded-host': 'axe-prime-production.up.railway.app',
+        'x-forwarded-proto': 'https',
+      },
+    });
+
+    expect(() => assertTrustedMutation(request)).not.toThrow();
   });
 
   it('accepts a same-origin mutation with a signed double-submit token', () => {

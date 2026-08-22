@@ -2,7 +2,10 @@
 
 Os scripts `npm run db:migrate`, `npm run migrationup`, `npm run admin:create` e
 `npm run avatars:migrate` leem `.env` e `.env.local` (se existirem), usando
-`DATABASE_SSL_MODE`/`DATABASE_CA_CERT`. Os utilitários libpq (`pg_dump` e
+`DATABASE_SSL_MODE`/`DATABASE_CA_CERT`. Use `verify-full` com uma CA confiável.
+Quando a aplicação e o PostgreSQL estiverem no mesmo ambiente privado do
+Railway, `require` mantém TLS e aceita a CA autossinada do serviço; não use esse
+modo sobre uma rede pública. Os utilitários libpq (`pg_dump` e
 `pg_restore`) não leem essas variáveis da aplicação; configure TLS também no
 serviço libpq usado pelos comandos abaixo.
 

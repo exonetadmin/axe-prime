@@ -102,10 +102,10 @@ function buildTlsConfiguration() {
   }
 
   return {
-    // Certificados sempre são validados. Use DATABASE_CA_CERT para uma CA
-    // privada; verify-full é o modo recomendado e o padrão.
-    rejectUnauthorized: true,
-    ...(ca ? { ca } : {}),
+    // `require` cifra o transporte e aceita CA privada/autossinada; use somente
+    // em rede privada confiável. `verify-full` valida cadeia e hostname.
+    rejectUnauthorized: mode === 'verify-full',
+    ...(mode === 'verify-full' && ca ? { ca } : {}),
   };
 }
 

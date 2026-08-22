@@ -70,7 +70,7 @@ function logRequestSecurityRejection(request: Request, error: RequestSecurityErr
     // If configuration is invalid, keep this empty and rely on application error.
   }
 
-  console.warn('[Security] Request blocked', {
+  const event = {
     event: 'request_security_rejection',
     code: error.code,
     status: error.status,
@@ -83,13 +83,19 @@ function logRequestSecurityRejection(request: Request, error: RequestSecurityErr
     secFetchSite: headers.get('sec-fetch-site'),
     secFetchMode: headers.get('sec-fetch-mode'),
     secFetchDest: headers.get('sec-fetch-dest'),
+    forwardedHost: headers.get('x-forwarded-host'),
+    forwardedProto: headers.get('x-forwarded-proto'),
     userAgentHash: userAgent ? safeHash(userAgent) : null,
     ipAddress,
     hasCookie: headers.has('cookie'),
     hasCsrfHeader: headers.has('x-csrf-token'),
     bearerPresent: (headers.get('authorization') ?? '').toLowerCase().startsWith('bearer '),
     allowedOrigins: allowedOriginsForLog,
-  });
+  };
+
+  // Keep the event on one line so log collectors such as Railway do not split
+  // each property into a separate entry.
+  console.warn(`[Security] Request blocked ${JSON.stringify(event)}`);
 }
 
 function throwSecurityError(
@@ -105,7 +111,11 @@ function throwSecurityError(
 
 function allowedOrigins(request: Request): Set<string> {
   const origins = new Set<string>([new URL(request.url).origin]);
-  for (const value of (process.env.AUTH_ALLOWED_ORIGINS ?? '').split(',')) {
+  const configuredOrigins = [
+    ...(process.env.AUTH_ALLOWED_ORIGINS ?? '').split(','),
+    process.env.APP_PUBLIC_URL ?? '',
+  ];
+  for (const value of configuredOrigins) {
     const origin = value.trim();
     if (!origin) continue;
     try {

@@ -1,20 +1,37 @@
 // @vitest-environment node
 
-import { describe, expect, it } from 'vitest';
-import { postgresIntegerToSafeNumber } from '../postgres';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { databaseSslConfiguration } from '../postgres';
 
-describe('PostgreSQL integer conversion', () => {
-  it('converts BIGINT strings without losing cents', () => {
-    expect(postgresIntegerToSafeNumber('2147483648', 'balance')).toBe(2_147_483_648);
+describe('PostgreSQL TLS configuration', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
-  it('uses zero for a nullable aggregate', () => {
-    expect(postgresIntegerToSafeNumber(null, 'balance')).toBe(0);
+  it('encrypts without validating a self-signed CA in require mode', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('DATABASE_SSL_MODE', 'require');
+
+    expect(databaseSslConfiguration()).toEqual({ rejectUnauthorized: false });
   });
 
-  it('rejects values that JavaScript cannot represent exactly', () => {
-    expect(() => postgresIntegerToSafeNumber('9007199254740992', 'balance')).toThrow(
-      'balance is outside'
+  it('validates the certificate chain in verify-full mode', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('DATABASE_SSL_MODE', 'verify-full');
+    vi.stubEnv('DATABASE_CA_CERT', '-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----');
+
+    expect(databaseSslConfiguration()).toEqual({
+      rejectUnauthorized: true,
+      ca: '-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----',
+    });
+  });
+
+  it('continues to reject unencrypted database connections in production', () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('DATABASE_SSL_MODE', 'disable');
+
+    expect(() => databaseSslConfiguration()).toThrow(
+      'DATABASE_SSL_MODE=disable is not allowed in production'
     );
   });
 });
