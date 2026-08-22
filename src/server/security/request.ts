@@ -26,6 +26,83 @@ export class RequestSecurityError extends Error {
   }
 }
 
+function isRequestSecurityLoggingEnabled(): boolean {
+  const value = process.env.REQUEST_SECURITY_LOG?.trim().toLowerCase();
+  if (value === '1' || value === 'true' || value === 'yes' || value === 'on') return true;
+  return process.env.NODE_ENV !== 'production';
+}
+
+function safeHash(value: string): string {
+  return createHash('sha256').update(value, 'utf8').digest('hex').slice(0, 12);
+}
+
+function getRequestIpForSecurityLogging(headers: Pick<Headers, 'get'>): string | null {
+  const candidate =
+    headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    headers.get('x-real-ip')?.trim() ||
+    null;
+  return candidate && isIP(candidate) ? candidate : null;
+}
+
+function logRequestSecurityRejection(request: Request, error: RequestSecurityError): void {
+  if (!isRequestSecurityLoggingEnabled()) return;
+
+  let originUrl: URL | null = null;
+  try {
+    originUrl = new URL(request.url);
+  } catch {
+    // keep request context best-effort
+  }
+
+  const headers = request.headers;
+  const userAgent = headers.get('user-agent');
+  const ipAddress =
+    process.env.TRUST_PROXY_HEADERS === 'true'
+      ? getRequestIpForSecurityLogging(headers)
+      : null;
+
+  const allowedOriginsForLog: string[] = [];
+  try {
+    for (const value of allowedOrigins(request)) {
+      allowedOriginsForLog.push(value);
+    }
+  } catch {
+    // If configuration is invalid, keep this empty and rely on application error.
+  }
+
+  console.warn('[Security] Request blocked', {
+    event: 'request_security_rejection',
+    code: error.code,
+    status: error.status,
+    message: error.message,
+    method: request.method,
+    pathname: originUrl?.pathname ?? null,
+    host: originUrl?.host ?? null,
+    origin: headers.get('origin') ?? null,
+    referer: headers.get('referer') ?? null,
+    secFetchSite: headers.get('sec-fetch-site'),
+    secFetchMode: headers.get('sec-fetch-mode'),
+    secFetchDest: headers.get('sec-fetch-dest'),
+    userAgentHash: userAgent ? safeHash(userAgent) : null,
+    ipAddress,
+    hasCookie: headers.has('cookie'),
+    hasCsrfHeader: headers.has('x-csrf-token'),
+    bearerPresent: (headers.get('authorization') ?? '').toLowerCase().startsWith('bearer '),
+    allowedOrigins: allowedOriginsForLog,
+  });
+}
+
+function throwSecurityError(
+  request: Request,
+  message: string,
+  status: 400 | 403 | 413 | 415,
+  code: 'INVALID_ORIGIN' | 'INVALID_FETCH_SITE' | 'INVALID_CSRF' | 'INVALID_JSON' | 'PAYLOAD_TOO_LARGE' | 'UNSUPPORTED_MEDIA_TYPE'
+): never {
+  const error = new RequestSecurityError(message, status, code);
+  logRequestSecurityRejection(request, error);
+  throw error;
+}
+
 function allowedOrigins(request: Request): Set<string> {
   const origins = new Set<string>([new URL(request.url).origin]);
   for (const value of (process.env.AUTH_ALLOWED_ORIGINS ?? '').split(',')) {
@@ -44,19 +121,20 @@ function allowedOrigins(request: Request): Set<string> {
 export function assertTrustedMutation(request: Request): void {
   const fetchSite = request.headers.get('sec-fetch-site');
   if (fetchSite && fetchSite !== 'same-origin' && fetchSite !== 'none') {
-    throw new RequestSecurityError('Cross-site request rejected', 403, 'INVALID_FETCH_SITE');
+    throwSecurityError(request, 'Cross-site request rejected', 403, 'INVALID_FETCH_SITE');
   }
 
   const origin = request.headers.get('origin');
   if (origin && !allowedOrigins(request).has(origin)) {
-    throw new RequestSecurityError('Origin not allowed', 403, 'INVALID_ORIGIN');
+    throwSecurityError(request, 'Origin not allowed', 403, 'INVALID_ORIGIN');
   }
 }
 
 export function assertJsonRequest(request: Request): void {
   const contentType = request.headers.get('content-type')?.toLowerCase() ?? '';
   if (!contentType.startsWith('application/json')) {
-    throw new RequestSecurityError(
+    throwSecurityError(
+      request,
       'Content-Type must be application/json',
       415,
       'UNSUPPORTED_MEDIA_TYPE'
@@ -68,7 +146,7 @@ export function assertRequestBodySize(request: Request, maximumBytes: number): v
   const raw = request.headers.get('content-length');
   if (!raw) return;
   if (!/^[0-9]+$/.test(raw) || Number(raw) > maximumBytes) {
-    throw new RequestSecurityError('Request body is too large', 413, 'PAYLOAD_TOO_LARGE');
+    throwSecurityError(request, 'Request body is too large', 413, 'PAYLOAD_TOO_LARGE');
   }
 }
 
@@ -94,7 +172,7 @@ export async function readRequestBodyWithLimit(
       size += value.byteLength;
       if (size > maximumBytes) {
         await reader.cancel().catch(() => undefined);
-        throw new RequestSecurityError('Request body is too large', 413, 'PAYLOAD_TOO_LARGE');
+        throwSecurityError(request, 'Request body is too large', 413, 'PAYLOAD_TOO_LARGE');
       }
       chunks.push(value);
     }
@@ -114,7 +192,7 @@ export async function parseJsonRequest(
     return JSON.parse(body.toString('utf8')) as unknown;
   } catch (error) {
     if (error instanceof RequestSecurityError) throw error;
-    throw new RequestSecurityError('Invalid JSON body', 400, 'INVALID_JSON');
+    throwSecurityError(request, 'Invalid JSON body', 400, 'INVALID_JSON');
   }
 }
 
@@ -153,7 +231,7 @@ export function assertCsrf(request: Request, cookieName = CSRF_TOKEN_COOKIE): vo
     !sameSecret(cookieToken, headerToken) ||
     !verifyCsrfToken(cookieToken, sessionBinding)
   ) {
-    throw new RequestSecurityError('CSRF validation failed', 403, 'INVALID_CSRF');
+    throwSecurityError(request, 'CSRF validation failed', 403, 'INVALID_CSRF');
   }
 }
 
